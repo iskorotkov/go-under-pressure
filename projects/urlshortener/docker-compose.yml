@@ -11,6 +11,7 @@ services:
         volumes:
             - postgres_data:/var/lib/postgresql/data
             - ./configs/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+            - ./configs/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
         command: postgres -c config_file=/etc/postgresql/postgresql.conf
         restart: unless-stopped
         healthcheck:

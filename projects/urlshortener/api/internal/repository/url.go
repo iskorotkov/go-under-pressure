@@ -7,11 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 
 	"urlshortener/internal/config"
-	"urlshortener/internal/domain"
 )
 
 type URLRepository struct {
@@ -24,24 +21,6 @@ func NewURLRepository(cfg *config.DatabaseConfig) (*URLRepository, error) {
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode,
 	)
 
-	// Use GORM only for migrations
-	gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect for migrations: %w", err)
-	}
-
-	if err := gormDB.AutoMigrate(&domain.URL{}); err != nil {
-		return nil, fmt.Errorf("failed to run migrations: %w", err)
-	}
-
-	// Close GORM connection after migrations
-	sqlDB, err := gormDB.DB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sql.DB: %w", err)
-	}
-	_ = sqlDB.Close()
-
-	// Create pgx pool for queries
 	poolConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse pool config: %w", err)

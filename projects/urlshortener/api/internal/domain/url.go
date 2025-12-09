@@ -1,17 +1,7 @@
 package domain
 
-import "time"
-
-type URL struct {
-	ID          uint      `gorm:"primaryKey"`
-	ShortCode   string    `gorm:"size:16;uniqueIndex;not null"`
-	OriginalURL string    `gorm:"type:text;not null"`
-	CreatedAt   time.Time `gorm:"not null"`
-	UpdatedAt   time.Time `gorm:"not null"`
-}
-
 type CreateURLRequest struct {
-	URL string `json:"url" validate:"required,url"`
+	URL string `json:"url"`
 }
 
 type CreateURLResponse struct {
