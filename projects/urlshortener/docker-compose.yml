@@ -80,6 +80,8 @@ services:
             BASE_URL: http://api:8080
             CODES_FILE: /scripts/codes.json
             CREATE_RATIO: ${K6_CREATE_RATIO:-0.1}
+            VUS: ${K6_VUS:-50}
+            VUS_MAX: ${K6_VUS_MAX:-100}
         command: run /scripts/mixed.ts
         depends_on:
             seed:

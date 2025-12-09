@@ -1,11 +1,15 @@
 import http from 'k6/http';
 import { check } from 'k6';
 
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
+const VUS = Number(__ENV.VUS) || 50;
+const VUS_MAX = Number(__ENV.VUS_MAX) || VUS * 2;
+
 export const options = {
   stages: [
-    { duration: '10s', target: 50 },
-    { duration: '30s', target: 50 },
-    { duration: '10s', target: 100 },
+    { duration: '10s', target: VUS },
+    { duration: '30s', target: VUS },
+    { duration: '10s', target: VUS_MAX },
     { duration: '10s', target: 0 },
   ],
   thresholds: {
@@ -13,8 +17,6 @@ export const options = {
     http_req_failed: ['rate<0.001'],
   },
 };
-
-const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 
 export default function () {
   const payload = JSON.stringify({
