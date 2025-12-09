@@ -54,7 +54,7 @@ func (r *URLRepository) NextID(ctx context.Context) (uint, error) {
 
 func (r *URLRepository) Create(ctx context.Context, id uint, shortCode, originalURL string) error {
 	_, err := r.pool.Exec(ctx,
-		"INSERT INTO urls (id, short_code, original_url, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())",
+		"INSERT INTO urls (id, short_code, original_url, created_at) VALUES ($1, $2, $3, NOW())",
 		id, shortCode, originalURL,
 	)
 	if err != nil {
@@ -106,13 +106,13 @@ func (r *URLRepository) CreateBatch(ctx context.Context, urls []URLRow) error {
 	now := time.Now()
 	rows := make([][]any, len(urls))
 	for i, u := range urls {
-		rows[i] = []any{u.ID, u.ShortCode, u.OriginalURL, now, now}
+		rows[i] = []any{u.ID, u.ShortCode, u.OriginalURL, now}
 	}
 
 	_, err := r.pool.CopyFrom(
 		ctx,
 		pgx.Identifier{"urls"},
-		[]string{"id", "short_code", "original_url", "created_at", "updated_at"},
+		[]string{"id", "short_code", "original_url", "created_at"},
 		pgx.CopyFromRows(rows),
 	)
 	if err != nil {
