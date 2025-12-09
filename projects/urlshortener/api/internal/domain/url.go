@@ -19,3 +19,11 @@ type CreateURLResponse struct {
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
 }
+
+type CreateURLBatchRequest struct {
+	URLs []string `json:"urls"`
+}
+
+type CreateURLBatchResponse struct {
+	URLs []CreateURLResponse `json:"urls"`
+}

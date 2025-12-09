@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -93,4 +94,50 @@ func (r *URLRepository) FindByShortCode(ctx context.Context, shortCode string) (
 		return "", err
 	}
 	return originalURL, nil
+}
+
+func (r *URLRepository) NextIDs(ctx context.Context, count int) ([]uint, error) {
+	rows, err := r.pool.Query(ctx,
+		"SELECT nextval('urls_id_seq') FROM generate_series(1, $1)",
+		count,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get next ids: %w", err)
+	}
+	defer rows.Close()
+
+	ids := make([]uint, 0, count)
+	for rows.Next() {
+		var id uint
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+type URLRow struct {
+	ID          uint
+	ShortCode   string
+	OriginalURL string
+}
+
+func (r *URLRepository) CreateBatch(ctx context.Context, urls []URLRow) error {
+	now := time.Now()
+	rows := make([][]any, len(urls))
+	for i, u := range urls {
+		rows[i] = []any{u.ID, u.ShortCode, u.OriginalURL, now, now}
+	}
+
+	_, err := r.pool.CopyFrom(
+		ctx,
+		pgx.Identifier{"urls"},
+		[]string{"id", "short_code", "original_url", "created_at", "updated_at"},
+		pgx.CopyFromRows(rows),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to batch insert urls: %w", err)
+	}
+	return nil
 }

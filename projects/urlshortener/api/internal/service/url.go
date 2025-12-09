@@ -57,7 +57,6 @@ func (s *URLService) CreateShortURL(ctx context.Context, originalURL string) (*d
 }
 
 func (s *URLService) GetOriginalURL(ctx context.Context, shortCode string) (string, error) {
-	// Check cache first
 	if url, found := s.cache.Get(shortCode); found {
 		return url, nil
 	}
@@ -70,8 +69,49 @@ func (s *URLService) GetOriginalURL(ctx context.Context, shortCode string) (stri
 		return "", fmt.Errorf("failed to find url: %w", err)
 	}
 
-	// Cache the result
 	s.cache.Set(shortCode, url)
 
 	return url, nil
+}
+
+func (s *URLService) CreateShortURLBatch(ctx context.Context, originalURLs []string) ([]domain.CreateURLResponse, error) {
+	count := len(originalURLs)
+	if count == 0 {
+		return []domain.CreateURLResponse{}, nil
+	}
+
+	ids, err := s.repo.NextIDs(ctx, count)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get next ids: %w", err)
+	}
+
+	urlRows := make([]repository.URLRow, count)
+	responses := make([]domain.CreateURLResponse, count)
+
+	for i, originalURL := range originalURLs {
+		shortCode, err := s.shortener.Generate(ids[i])
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate short code: %w", err)
+		}
+
+		urlRows[i] = repository.URLRow{
+			ID:          ids[i],
+			ShortCode:   shortCode,
+			OriginalURL: originalURL,
+		}
+
+		responses[i] = domain.CreateURLResponse{
+			ShortCode:   shortCode,
+			ShortURL:    fmt.Sprintf("%s/%s", s.baseURL, shortCode),
+			OriginalURL: originalURL,
+		}
+
+		s.cache.Set(shortCode, originalURL)
+	}
+
+	if err := s.repo.CreateBatch(ctx, urlRows); err != nil {
+		return nil, fmt.Errorf("failed to create urls: %w", err)
+	}
+
+	return responses, nil
 }

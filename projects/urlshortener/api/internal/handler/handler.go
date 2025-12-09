@@ -26,6 +26,7 @@ func New(urlService *service.URLService, logger *slog.Logger) *Handler {
 func (h *Handler) Register(e *echo.Echo) {
 	api := e.Group("/api/v1")
 	api.POST("/urls", h.CreateURL)
+	api.POST("/urls/batch", h.CreateURLBatch)
 	e.GET("/:code", h.Redirect)
 }
 
@@ -47,6 +48,26 @@ func (h *Handler) CreateURL(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, resp)
+}
+
+func (h *Handler) CreateURLBatch(c echo.Context) error {
+	var req domain.CreateURLBatchRequest
+	if err := c.Bind(&req); err != nil {
+		h.logger.Error("failed to bind request", slog.String("error", err.Error()))
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	if len(req.URLs) == 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "urls is required"})
+	}
+
+	responses, err := h.urlService.CreateShortURLBatch(c.Request().Context(), req.URLs)
+	if err != nil {
+		h.logger.Error("failed to create short urls", slog.String("error", err.Error()))
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to create short urls"})
+	}
+
+	return c.JSON(http.StatusCreated, domain.CreateURLBatchResponse{URLs: responses})
 }
 
 func (h *Handler) Redirect(c echo.Context) error {
