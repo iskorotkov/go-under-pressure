@@ -24,10 +24,15 @@ func New(urlService *service.URLService, logger *slog.Logger) *Handler {
 }
 
 func (h *Handler) Register(e *echo.Echo) {
+	e.GET("/health", h.Health)
 	api := e.Group("/api/v1")
 	api.POST("/urls", h.CreateURL)
 	api.POST("/urls/batch", h.CreateURLBatch)
 	e.GET("/:code", h.Redirect)
+}
+
+func (h *Handler) Health(c echo.Context) error {
+	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (h *Handler) CreateURL(c echo.Context) error {

@@ -37,6 +37,53 @@ services:
             postgres:
                 condition: service_healthy
         restart: unless-stopped
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "wget",
+                    "-q",
+                    "--spider",
+                    "http://localhost:8080/health",
+                ]
+            interval: 5s
+            timeout: 3s
+            retries: 10
+            start_period: 5s
+
+    seed:
+        image: oven/bun:latest
+        container_name: urlshortener-seed
+        profiles:
+            - bench
+        volumes:
+            - ./bench:/app
+        working_dir: /app
+        environment:
+            BASE_URL: http://api:8080
+            COUNT: ${SEED_COUNT:-100000}
+            BATCH_SIZE: ${SEED_BATCH_SIZE:-5000}
+            OUTPUT: /app/codes.json
+        command: bun run seed.ts
+        depends_on:
+            api:
+                condition: service_healthy
+
+    k6:
+        image: grafana/k6:latest
+        container_name: urlshortener-k6
+        profiles:
+            - bench
+        volumes:
+            - ./bench:/scripts:ro
+        environment:
+            BASE_URL: http://api:8080
+            CODES_FILE: /scripts/codes.json
+            CREATE_RATIO: ${K6_CREATE_RATIO:-0.1}
+        command: run /scripts/mixed.ts
+        depends_on:
+            seed:
+                condition: service_completed_successfully
 
 volumes:
     postgres_data:
