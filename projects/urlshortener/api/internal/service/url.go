@@ -51,7 +51,7 @@ func (s *URLService) CreateShortURL(ctx context.Context, originalURL string) (*d
 
 	return &domain.CreateURLResponse{
 		ShortCode:   shortCode,
-		ShortURL:    fmt.Sprintf("%s/%s", s.baseURL, shortCode),
+		ShortURL:    s.baseURL + "/" + shortCode,
 		OriginalURL: originalURL,
 	}, nil
 }
@@ -102,7 +102,7 @@ func (s *URLService) CreateShortURLBatch(ctx context.Context, originalURLs []str
 
 		responses[i] = domain.CreateURLResponse{
 			ShortCode:   shortCode,
-			ShortURL:    fmt.Sprintf("%s/%s", s.baseURL, shortCode),
+			ShortURL:    s.baseURL + "/" + shortCode,
 			OriginalURL: originalURL,
 		}
 

@@ -11,6 +11,18 @@ import (
 	"urlshortener/internal/service"
 )
 
+var (
+	errInvalidBody       = map[string]string{"error": "invalid request body"}
+	errURLRequired       = map[string]string{"error": "url is required"}
+	errURLsRequired      = map[string]string{"error": "urls is required"}
+	errCodeRequired      = map[string]string{"error": "code is required"}
+	errURLNotFound       = map[string]string{"error": "url not found"}
+	errCreateFailed      = map[string]string{"error": "failed to create short url"}
+	errCreateBatchFailed = map[string]string{"error": "failed to create short urls"}
+	errGetFailed         = map[string]string{"error": "failed to get url"}
+	respHealthOK         = map[string]string{"status": "ok"}
+)
+
 type Handler struct {
 	urlService *service.URLService
 	logger     *slog.Logger
@@ -32,24 +44,24 @@ func (h *Handler) Register(e *echo.Echo) {
 }
 
 func (h *Handler) Health(c echo.Context) error {
-	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+	return c.JSON(http.StatusOK, respHealthOK)
 }
 
 func (h *Handler) CreateURL(c echo.Context) error {
 	var req domain.CreateURLRequest
 	if err := c.Bind(&req); err != nil {
 		h.logger.Error("failed to bind request", slog.String("error", err.Error()))
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return c.JSON(http.StatusBadRequest, errInvalidBody)
 	}
 
 	if req.URL == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "url is required"})
+		return c.JSON(http.StatusBadRequest, errURLRequired)
 	}
 
 	resp, err := h.urlService.CreateShortURL(c.Request().Context(), req.URL)
 	if err != nil {
 		h.logger.Error("failed to create short url", slog.String("error", err.Error()))
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to create short url"})
+		return c.JSON(http.StatusInternalServerError, errCreateFailed)
 	}
 
 	return c.JSON(http.StatusCreated, resp)
@@ -59,17 +71,17 @@ func (h *Handler) CreateURLBatch(c echo.Context) error {
 	var req domain.CreateURLBatchRequest
 	if err := c.Bind(&req); err != nil {
 		h.logger.Error("failed to bind request", slog.String("error", err.Error()))
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return c.JSON(http.StatusBadRequest, errInvalidBody)
 	}
 
 	if len(req.URLs) == 0 {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "urls is required"})
+		return c.JSON(http.StatusBadRequest, errURLsRequired)
 	}
 
 	responses, err := h.urlService.CreateShortURLBatch(c.Request().Context(), req.URLs)
 	if err != nil {
 		h.logger.Error("failed to create short urls", slog.String("error", err.Error()))
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to create short urls"})
+		return c.JSON(http.StatusInternalServerError, errCreateBatchFailed)
 	}
 
 	return c.JSON(http.StatusCreated, domain.CreateURLBatchResponse{URLs: responses})
@@ -78,16 +90,16 @@ func (h *Handler) CreateURLBatch(c echo.Context) error {
 func (h *Handler) Redirect(c echo.Context) error {
 	code := c.Param("code")
 	if code == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "code is required"})
+		return c.JSON(http.StatusBadRequest, errCodeRequired)
 	}
 
 	originalURL, err := h.urlService.GetOriginalURL(c.Request().Context(), code)
 	if err != nil {
 		if errors.Is(err, service.ErrURLNotFound) {
-			return c.JSON(http.StatusNotFound, map[string]string{"error": "url not found"})
+			return c.JSON(http.StatusNotFound, errURLNotFound)
 		}
 		h.logger.Error("failed to get original url", slog.String("error", err.Error()))
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to get url"})
+		return c.JSON(http.StatusInternalServerError, errGetFailed)
 	}
 
 	return c.Redirect(http.StatusFound, originalURL)

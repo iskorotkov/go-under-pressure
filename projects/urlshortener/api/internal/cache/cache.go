@@ -29,7 +29,8 @@ func (c *URLCache) Get(shortCode string) (string, bool) {
 }
 
 func (c *URLCache) Set(shortCode, originalURL string) {
-	c.cache.Set(shortCode, originalURL, 1)
+	cost := int64(len(shortCode) + len(originalURL))
+	c.cache.Set(shortCode, originalURL, cost)
 }
 
 func (c *URLCache) Close() {

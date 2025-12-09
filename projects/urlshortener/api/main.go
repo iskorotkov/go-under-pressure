@@ -23,18 +23,22 @@ import (
 )
 
 func main() {
-	cpuFile, err := os.Create("cpu.prof")
-	if err != nil {
-		slog.Error("failed to create CPU profile", slog.String("error", err.Error()))
-		os.Exit(1)
-	}
-	defer func() { _ = cpuFile.Close() }()
+	pprofEnabled := os.Getenv("PPROF") != ""
 
-	if err := pprof.StartCPUProfile(cpuFile); err != nil {
-		slog.Error("failed to start CPU profile", slog.String("error", err.Error()))
-		os.Exit(1)
+	if pprofEnabled {
+		cpuFile, err := os.Create("cpu.prof")
+		if err != nil {
+			slog.Error("failed to create CPU profile", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		defer func() { _ = cpuFile.Close() }()
+
+		if err := pprof.StartCPUProfile(cpuFile); err != nil {
+			slog.Error("failed to start CPU profile", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		defer pprof.StopCPUProfile()
 	}
-	defer pprof.StopCPUProfile()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -46,15 +50,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	memFile, err := os.Create("mem.prof")
-	if err != nil {
-		logger.Error("failed to create memory profile", slog.String("error", err.Error()))
-		return
-	}
-	defer func() { _ = memFile.Close() }()
+	if pprofEnabled {
+		memFile, err := os.Create("mem.prof")
+		if err != nil {
+			logger.Error("failed to create memory profile", slog.String("error", err.Error()))
+			return
+		}
+		defer func() { _ = memFile.Close() }()
 
-	if err := pprof.WriteHeapProfile(memFile); err != nil {
-		logger.Error("failed to write memory profile", slog.String("error", err.Error()))
+		if err := pprof.WriteHeapProfile(memFile); err != nil {
+			logger.Error("failed to write memory profile", slog.String("error", err.Error()))
+		}
 	}
 }
 
@@ -87,8 +93,6 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	e := echo.New()
 	e.HideBanner = true
 	e.Use(middleware.Recover())
-	// Request logging disabled for performance benchmarks
-	// e.Use(middleware.RequestLoggerWithConfig(...))
 
 	h.Register(e)
 
