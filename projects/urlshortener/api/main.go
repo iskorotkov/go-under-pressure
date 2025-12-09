@@ -1,5 +1,93 @@
 package main
 
-func main() {
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+
+	"urlshortener/internal/config"
+	"urlshortener/internal/handler"
+	"urlshortener/internal/repository"
+	"urlshortener/internal/service"
+	"urlshortener/internal/shortener"
+)
+
+func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+	if err := run(ctx, logger); err != nil {
+		logger.Error("application failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+}
+
+func run(ctx context.Context, logger *slog.Logger) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	repo, err := repository.NewURLRepository(&cfg.Database)
+	if err != nil {
+		return fmt.Errorf("failed to create repository: %w", err)
+	}
+
+	short, err := shortener.New()
+	if err != nil {
+		return fmt.Errorf("failed to create shortener: %w", err)
+	}
+
+	urlService := service.NewURLService(repo, short, cfg.App.BaseURL)
+	h := handler.New(urlService, logger)
+
+	e := echo.New()
+	e.HideBanner = true
+	e.Use(middleware.Recover())
+	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogStatus:   true,
+		LogURI:      true,
+		LogMethod:   true,
+		LogLatency:  true,
+		LogError:    true,
+		HandleError: true,
+		LogValuesFunc: func(_ echo.Context, v middleware.RequestLoggerValues) error {
+			logger.Info("request",
+				slog.String("method", v.Method),
+				slog.String("uri", v.URI),
+				slog.Int("status", v.Status),
+				slog.Duration("latency", v.Latency),
+			)
+			return nil
+		},
+	}))
+
+	h.Register(e)
+
+	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+	logger.Info("starting server", slog.String("addr", addr))
+
+	go func() {
+		if err := e.Start(addr); err != nil && err != http.ErrServerClosed {
+			logger.Error("server error", slog.String("error", err.Error()))
+		}
+	}()
+
+	<-ctx.Done()
+	logger.Info("shutting down server")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	return e.Shutdown(shutdownCtx)
 }
