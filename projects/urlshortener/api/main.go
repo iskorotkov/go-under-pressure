@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/pprof"
 	"syscall"
 	"time"
 
@@ -21,6 +22,19 @@ import (
 )
 
 func main() {
+	cpuFile, err := os.Create("cpu.prof")
+	if err != nil {
+		slog.Error("failed to create CPU profile", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	defer func() { _ = cpuFile.Close() }()
+
+	if err := pprof.StartCPUProfile(cpuFile); err != nil {
+		slog.Error("failed to start CPU profile", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	defer pprof.StopCPUProfile()
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -29,6 +43,17 @@ func main() {
 	if err := run(ctx, logger); err != nil {
 		logger.Error("application failed", slog.String("error", err.Error()))
 		os.Exit(1)
+	}
+
+	memFile, err := os.Create("mem.prof")
+	if err != nil {
+		logger.Error("failed to create memory profile", slog.String("error", err.Error()))
+		return
+	}
+	defer func() { _ = memFile.Close() }()
+
+	if err := pprof.WriteHeapProfile(memFile); err != nil {
+		logger.Error("failed to write memory profile", slog.String("error", err.Error()))
 	}
 }
 
