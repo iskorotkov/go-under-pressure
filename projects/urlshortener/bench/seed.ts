@@ -1,7 +1,7 @@
 import 'dotenv/config';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:8080';
-const COUNT = Number(process.env.COUNT) || 1000;
+const COUNT = Number(process.env.COUNT) || 10_000_000;
 const OUTPUT = process.env.OUTPUT || 'codes.json';
 
 interface CreateResponse {

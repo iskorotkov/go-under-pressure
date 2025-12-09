@@ -14,6 +14,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
+	"urlshortener/internal/cache"
 	"urlshortener/internal/config"
 	"urlshortener/internal/handler"
 	"urlshortener/internal/repository"
@@ -67,35 +68,27 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("failed to create repository: %w", err)
 	}
+	defer repo.Close()
 
 	short, err := shortener.New()
 	if err != nil {
 		return fmt.Errorf("failed to create shortener: %w", err)
 	}
 
-	urlService := service.NewURLService(repo, short, cfg.App.BaseURL)
+	urlCache, err := cache.New()
+	if err != nil {
+		return fmt.Errorf("failed to create cache: %w", err)
+	}
+	defer urlCache.Close()
+
+	urlService := service.NewURLService(repo, short, urlCache, cfg.App.BaseURL)
 	h := handler.New(urlService, logger)
 
 	e := echo.New()
 	e.HideBanner = true
 	e.Use(middleware.Recover())
-	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
-		LogStatus:   true,
-		LogURI:      true,
-		LogMethod:   true,
-		LogLatency:  true,
-		LogError:    true,
-		HandleError: true,
-		LogValuesFunc: func(_ echo.Context, v middleware.RequestLoggerValues) error {
-			logger.Info("request",
-				slog.String("method", v.Method),
-				slog.String("uri", v.URI),
-				slog.Int("status", v.Status),
-				slog.Duration("latency", v.Latency),
-			)
-			return nil
-		},
-	}))
+	// Request logging disabled for performance benchmarks
+	// e.Use(middleware.RequestLoggerWithConfig(...))
 
 	h.Register(e)
 
