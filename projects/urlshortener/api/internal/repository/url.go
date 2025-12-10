@@ -27,9 +27,10 @@ func NewURLRepository(cfg *config.DatabaseConfig) (*URLRepository, error) {
 	}
 
 	poolConfig.MaxConns = 100
-	poolConfig.MinConns = 25
+	poolConfig.MinConns = 50
 	poolConfig.MaxConnLifetime = 15 * time.Minute
 	poolConfig.MaxConnIdleTime = 5 * time.Minute
+	poolConfig.MaxConnLifetimeJitter = 2 * time.Minute
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
 	if err != nil {
