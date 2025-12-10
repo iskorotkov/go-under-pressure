@@ -49,10 +49,10 @@ type MetricsConfig struct {
 }
 
 type ValidationConfig struct {
-	MaxURLLength      int    `env:"VALIDATION_MAX_URL_LENGTH" envDefault:"2048"`
-	MaxBatchSize      int    `env:"VALIDATION_MAX_BATCH_SIZE" envDefault:"5000"`
+	MaxURLLength       int    `env:"VALIDATION_MAX_URL_LENGTH" envDefault:"2048"`
+	MaxBatchSize       int    `env:"VALIDATION_MAX_BATCH_SIZE" envDefault:"5000"`
 	MaxRequestBodySize string `env:"VALIDATION_MAX_BODY_SIZE" envDefault:"1M"`
-	AllowPrivateIPs   bool   `env:"VALIDATION_ALLOW_PRIVATE_IPS" envDefault:"false"`
+	AllowPrivateIPs    bool   `env:"VALIDATION_ALLOW_PRIVATE_IPS" envDefault:"false"`
 }
 
 func Load() (*Config, error) {

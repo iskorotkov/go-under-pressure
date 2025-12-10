@@ -1,0 +1,55 @@
+name: Go
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - projects/urlshortener/api
+          - projects/urlshortener/bench
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ matrix.project }}/go.mod
+          cache-dependency-path: ${{ matrix.project }}/go.sum
+
+      - name: Download dependencies
+        working-directory: ${{ matrix.project }}
+        run: go mod download
+
+      - name: Build
+        working-directory: ${{ matrix.project }}
+        run: go build ./...
+
+      - name: Format
+        working-directory: ${{ matrix.project }}
+        run: go tool golangci-lint fmt --diff
+
+      - name: Lint
+        working-directory: ${{ matrix.project }}
+        run: go tool golangci-lint run
+
+      - name: Test
+        working-directory: ${{ matrix.project }}
+        run: go test ./...
+
+      - name: Benchmark
+        working-directory: ${{ matrix.project }}
+        run: go test -bench=. -benchmem -run=^$ ./...
