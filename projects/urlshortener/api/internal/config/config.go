@@ -3,12 +3,13 @@ package config
 import "github.com/caarlos0/env/v11"
 
 type Config struct {
-	Server    ServerConfig
-	Database  DatabaseConfig
-	App       AppConfig
-	Cache     CacheConfig
-	RateLimit RateLimitConfig
-	Metrics   MetricsConfig
+	Server     ServerConfig
+	Database   DatabaseConfig
+	App        AppConfig
+	Cache      CacheConfig
+	RateLimit  RateLimitConfig
+	Metrics    MetricsConfig
+	Validation ValidationConfig
 }
 
 type ServerConfig struct {
@@ -45,6 +46,13 @@ type MetricsConfig struct {
 	BufferSize     int  `env:"METRICS_BUFFER_SIZE" envDefault:"10000"`
 	FlushInterval  int  `env:"METRICS_FLUSH_INTERVAL_MS" envDefault:"100"`
 	FlushThreshold int  `env:"METRICS_FLUSH_THRESHOLD" envDefault:"1000"`
+}
+
+type ValidationConfig struct {
+	MaxURLLength      int    `env:"VALIDATION_MAX_URL_LENGTH" envDefault:"2048"`
+	MaxBatchSize      int    `env:"VALIDATION_MAX_BATCH_SIZE" envDefault:"5000"`
+	MaxRequestBodySize string `env:"VALIDATION_MAX_BODY_SIZE" envDefault:"1M"`
+	AllowPrivateIPs   bool   `env:"VALIDATION_ALLOW_PRIVATE_IPS" envDefault:"false"`
 }
 
 func Load() (*Config, error) {

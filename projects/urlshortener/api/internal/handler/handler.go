@@ -9,6 +9,7 @@ import (
 
 	"urlshortener/internal/domain"
 	"urlshortener/internal/service"
+	"urlshortener/internal/validation"
 )
 
 var (
@@ -20,18 +21,29 @@ var (
 	errCreateFailed      = map[string]string{"error": "failed to create short url"}
 	errCreateBatchFailed = map[string]string{"error": "failed to create short urls"}
 	errGetFailed         = map[string]string{"error": "failed to get url"}
+	errInvalidURL        = map[string]string{"error": "invalid url format"}
+	errUnsafeURL         = map[string]string{"error": "url protocol not allowed"}
+	errURLTooLong        = map[string]string{"error": "url exceeds maximum length"}
+	errPrivateIP         = map[string]string{"error": "private ip addresses not allowed"}
+	errBatchTooLarge     = map[string]string{"error": "batch size exceeds maximum"}
 	respHealthOK         = map[string]string{"status": "ok"}
 )
 
 type Handler struct {
-	urlService *service.URLService
-	logger     *slog.Logger
+	urlService   *service.URLService
+	urlValidator *validation.URLValidator
+	logger       *slog.Logger
 }
 
-func New(urlService *service.URLService, logger *slog.Logger) *Handler {
+func New(
+	urlService *service.URLService,
+	urlValidator *validation.URLValidator,
+	logger *slog.Logger,
+) *Handler {
 	return &Handler{
-		urlService: urlService,
-		logger:     logger,
+		urlService:   urlService,
+		urlValidator: urlValidator,
+		logger:       logger,
 	}
 }
 
@@ -54,8 +66,8 @@ func (h *Handler) CreateURL(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, errInvalidBody)
 	}
 
-	if req.URL == "" {
-		return c.JSON(http.StatusBadRequest, errURLRequired)
+	if err := h.urlValidator.ValidateURL(req.URL); err != nil {
+		return h.handleValidationError(c, err)
 	}
 
 	resp, err := h.urlService.CreateShortURL(c.Request().Context(), req.URL)
@@ -74,8 +86,8 @@ func (h *Handler) CreateURLBatch(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, errInvalidBody)
 	}
 
-	if len(req.URLs) == 0 {
-		return c.JSON(http.StatusBadRequest, errURLsRequired)
+	if err := h.urlValidator.ValidateBatch(req.URLs); err != nil {
+		return h.handleValidationError(c, err)
 	}
 
 	responses, err := h.urlService.CreateShortURLBatch(c.Request().Context(), req.URLs)
@@ -103,4 +115,40 @@ func (h *Handler) Redirect(c echo.Context) error {
 	}
 
 	return c.Redirect(http.StatusFound, originalURL)
+}
+
+func (h *Handler) handleValidationError(c echo.Context, err error) error {
+	switch {
+	case errors.Is(err, validation.ErrEmptyURL):
+		return c.JSON(http.StatusBadRequest, errURLRequired)
+	case errors.Is(err, validation.ErrInvalidURLFormat):
+		return c.JSON(http.StatusBadRequest, errInvalidURL)
+	case errors.Is(err, validation.ErrUnsafeProtocol):
+		return c.JSON(http.StatusBadRequest, errUnsafeURL)
+	case errors.Is(err, validation.ErrURLTooLong):
+		return c.JSON(http.StatusBadRequest, errURLTooLong)
+	case errors.Is(err, validation.ErrPrivateIPNotAllowed):
+		return c.JSON(http.StatusBadRequest, errPrivateIP)
+	case errors.Is(err, validation.ErrBatchTooLarge):
+		return c.JSON(http.StatusBadRequest, errBatchTooLarge)
+	case errors.Is(err, validation.ErrEmptyBatch):
+		return c.JSON(http.StatusBadRequest, errURLsRequired)
+	default:
+		var batchErr *validation.BatchValidationError
+		if errors.As(err, &batchErr) {
+			return c.JSON(http.StatusBadRequest, h.formatBatchErrors(batchErr))
+		}
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "validation failed"})
+	}
+}
+
+func (h *Handler) formatBatchErrors(err *validation.BatchValidationError) map[string]any {
+	errs := make([]map[string]any, len(err.Errors))
+	for i, e := range err.Errors {
+		errs[i] = map[string]any{
+			"index": e.Index,
+			"error": e.Err.Error(),
+		}
+	}
+	return map[string]any{"errors": errs}
 }

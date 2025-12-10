@@ -23,6 +23,7 @@ import (
 	"urlshortener/internal/repository"
 	"urlshortener/internal/service"
 	"urlshortener/internal/shortener"
+	"urlshortener/internal/validation"
 )
 
 func main() {
@@ -96,12 +97,19 @@ func run(ctx context.Context, logger *slog.Logger) error {
 
 	go collectInfraMetrics(ctx, recorder, repo, urlCache)
 
+	urlValidator := validation.NewURLValidator(
+		cfg.Validation.MaxURLLength,
+		cfg.Validation.MaxBatchSize,
+		cfg.Validation.AllowPrivateIPs,
+	)
+
 	urlService := service.NewURLService(repo, short, urlCache, cfg.App.BaseURL, recorder)
-	h := handler.New(urlService, logger)
+	h := handler.New(urlService, urlValidator, logger)
 
 	e := echo.New()
 	e.HideBanner = true
 	e.Use(middleware.Recover())
+	e.Use(middleware.BodyLimit(cfg.Validation.MaxRequestBodySize))
 	e.Use(custommiddleware.Metrics(recorder))
 	e.Use(custommiddleware.RateLimit(&cfg.RateLimit, logger))
 
