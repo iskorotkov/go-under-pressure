@@ -631,7 +631,7 @@
           },
           "mappings": [],
           "thresholds": {
-            "mode": "absolute",
+            "mode": "percentage",
             "steps": [
               {
                 "color": "green",
@@ -659,18 +659,17 @@
       },
       "id": 8,
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
+        "displayMode": "basic",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
         "reduceOptions": {
           "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
+        "showUnfilled": true,
+        "valueMode": "color"
       },
       "pluginVersion": "11.0.0",
       "targets": [
@@ -682,12 +681,26 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT pool_acquired || ' / ' || pool_max AS pool_usage\nFROM infra_metrics\nWHERE time > NOW() - INTERVAL '1 minute'\nORDER BY time DESC\nLIMIT 1",
+          "rawSql": "SELECT pool_acquired, pool_max\nFROM infra_metrics\nWHERE time > NOW() - INTERVAL '1 minute'\nORDER BY time DESC\nLIMIT 1",
           "refId": "A"
         }
       ],
       "title": "Pool Usage",
-      "type": "stat"
+      "transformations": [
+        {
+          "id": "configFromData",
+          "options": {
+            "configRefId": "A",
+            "mappings": [
+              {
+                "fieldName": "pool_max",
+                "handlerKey": "max"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "bargauge"
     },
     {
       "datasource": {
@@ -701,11 +714,19 @@
           },
           "mappings": [],
           "thresholds": {
-            "mode": "absolute",
+            "mode": "percentage",
             "steps": [
               {
-                "color": "blue",
+                "color": "red",
                 "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 80
               }
             ]
           },
@@ -721,18 +742,17 @@
       },
       "id": 9,
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
+        "displayMode": "basic",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
         "reduceOptions": {
           "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
+        "showUnfilled": true,
+        "valueMode": "color"
       },
       "pluginVersion": "11.0.0",
       "targets": [
@@ -744,12 +764,26 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT cache_hits || ' / ' || (cache_hits + cache_misses) AS cache_stats\nFROM infra_metrics\nWHERE time > NOW() - INTERVAL '1 minute'\nORDER BY time DESC\nLIMIT 1",
+          "rawSql": "SELECT cache_hits, (cache_hits + cache_misses) AS cache_total\nFROM infra_metrics\nWHERE time > NOW() - INTERVAL '1 minute'\nORDER BY time DESC\nLIMIT 1",
           "refId": "A"
         }
       ],
       "title": "Cache Stats",
-      "type": "stat"
+      "transformations": [
+        {
+          "id": "configFromData",
+          "options": {
+            "configRefId": "A",
+            "mappings": [
+              {
+                "fieldName": "cache_total",
+                "handlerKey": "max"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "bargauge"
     }
   ],
   "refresh": "10s",

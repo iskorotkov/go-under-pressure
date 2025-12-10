@@ -330,11 +330,11 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  bucket AS time,\n  p50_ms AS p50,\n  p90_ms AS p90,\n  p99_ms AS p99\nFROM http_metrics_hourly\nWHERE $__timeFilter(bucket)\nORDER BY bucket",
+          "rawSql": "SELECT\n  bucket AS time,\n  p50_ms AS p50,\n  p90_ms AS p90,\n  p99_ms AS p99\nFROM http_metrics_agg\nWHERE $__timeFilter(bucket)\nORDER BY bucket",
           "refId": "A"
         }
       ],
-      "title": "Latency Percentiles (Hourly)",
+      "title": "Latency Percentiles",
       "type": "timeseries"
     },
     {
