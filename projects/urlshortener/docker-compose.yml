@@ -16,6 +16,7 @@ services:
             - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
             - ./postgres/02-timescaledb.sql:/docker-entrypoint-initdb.d/02-timescaledb.sql:ro
             - ./postgres/03-grafana-user.sh:/docker-entrypoint-initdb.d/03-grafana-user.sh:ro
+            - ./postgres/04-pg-metrics.sql:/docker-entrypoint-initdb.d/04-pg-metrics.sql:ro
         command: postgres -c config_file=/etc/postgresql/postgresql.conf
         restart: unless-stopped
         healthcheck:

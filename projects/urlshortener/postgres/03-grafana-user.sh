@@ -7,4 +7,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
     GRANT USAGE ON SCHEMA public TO ${GRAFANA_DB_USER:-grafana};
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO ${GRAFANA_DB_USER:-grafana};
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO ${GRAFANA_DB_USER:-grafana};
+    -- Required for querying pg_stat_* views
+    GRANT pg_read_all_stats TO ${GRAFANA_DB_USER:-grafana};
 EOSQL
