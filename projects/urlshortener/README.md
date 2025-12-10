@@ -10,7 +10,14 @@ docker compose up
 
 API available at http://localhost:8080
 
+Grafana available at http://localhost:3000
+
 ## API
+
+### Health Check
+```
+GET /health -> {"status": "ok"}
+```
 
 ### Create Short URL
 ```
@@ -47,7 +54,7 @@ GET /:code -> 302 redirect
 | POSTGRES_PASSWORD | postgres | Database password |
 | POSTGRES_DB | urlshortener | Database name |
 | BASE_URL | http://localhost:8080 | Base URL for short links |
-| CACHE_MAX_SIZE_POW2 | 27 | Cache size as 2^n bytes (27=128MB) |
+| CACHE_MAX_SIZE_POW2 | 0 | Cache size as 2^n bytes (0=disabled, 27=128MB) |
 
 ### Benchmark
 | Variable | Default | Description |

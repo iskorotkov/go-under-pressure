@@ -3,7 +3,8 @@
 ## Project Structure
 - `api/` - Go HTTP API (Echo framework)
 - `bench/` - Go benchmarking tool (Vegeta)
-- `configs/` - PostgreSQL config and init SQL
+- `postgres/` - PostgreSQL init SQL
+- `grafana/` - Grafana dashboards and provisioning
 
 ## Commands
 - Build: `docker compose build`
@@ -11,6 +12,9 @@
 - Benchmark: `docker compose --profile bench up bench`
 - Lint API: `cd api && golangci-lint run`
 - Lint Bench: `cd bench && golangci-lint run`
+- Test API: `cd api && go test ./...`
+- Test Bench: `cd bench && go test ./...`
+- Generate Mocks: `cd api && go generate ./...`
 
 ## Environment Variables
 See README.md for full list.
