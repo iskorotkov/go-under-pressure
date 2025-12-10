@@ -66,13 +66,15 @@ func (s *URLService) CreateShortURL(ctx context.Context, originalURL string) (*d
 }
 
 func (s *URLService) GetOriginalURL(ctx context.Context, shortCode string) (string, error) {
+	labels := map[string]string{"short_code": shortCode}
+
 	if url, found := s.cache.Get(shortCode); found {
-		s.recorder.RecordBusiness("cache_hit", 1, nil)
-		s.recorder.RecordBusiness("redirects", 1, nil)
+		s.recorder.RecordBusiness("cache_hit", 1, labels)
+		s.recorder.RecordBusiness("redirects", 1, labels)
 		return url, nil
 	}
 
-	s.recorder.RecordBusiness("cache_miss", 1, nil)
+	s.recorder.RecordBusiness("cache_miss", 1, labels)
 
 	url, err := s.repo.FindByShortCode(ctx, shortCode)
 	if err != nil {
@@ -83,7 +85,7 @@ func (s *URLService) GetOriginalURL(ctx context.Context, shortCode string) (stri
 	}
 
 	s.cache.Set(shortCode, url)
-	s.recorder.RecordBusiness("redirects", 1, nil)
+	s.recorder.RecordBusiness("redirects", 1, labels)
 
 	return url, nil
 }

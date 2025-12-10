@@ -104,7 +104,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	)
 
 	urlService := service.NewURLService(repo, short, urlCache, cfg.App.BaseURL, recorder)
-	h := handler.New(urlService, urlValidator, logger)
+	h := handler.New(urlService, urlValidator, logger, recorder)
 
 	e := echo.New()
 	e.HideBanner = true

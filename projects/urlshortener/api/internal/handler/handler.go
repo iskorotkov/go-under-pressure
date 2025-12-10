@@ -4,10 +4,12 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 
 	"github.com/labstack/echo/v4"
 
 	"urlshortener/internal/domain"
+	"urlshortener/internal/metrics"
 	"urlshortener/internal/service"
 	"urlshortener/internal/validation"
 )
@@ -33,17 +35,20 @@ type Handler struct {
 	urlService   *service.URLService
 	urlValidator *validation.URLValidator
 	logger       *slog.Logger
+	recorder     *metrics.Recorder
 }
 
 func New(
 	urlService *service.URLService,
 	urlValidator *validation.URLValidator,
 	logger *slog.Logger,
+	recorder *metrics.Recorder,
 ) *Handler {
 	return &Handler{
 		urlService:   urlService,
 		urlValidator: urlValidator,
 		logger:       logger,
+		recorder:     recorder,
 	}
 }
 
@@ -105,16 +110,46 @@ func (h *Handler) Redirect(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, errCodeRequired)
 	}
 
+	clientIP := c.RealIP()
+	referrer := extractDomain(c.Request().Referer())
+
 	originalURL, err := h.urlService.GetOriginalURL(c.Request().Context(), code)
 	if err != nil {
 		if errors.Is(err, service.ErrURLNotFound) {
+			h.recorder.RecordBusiness("url_not_found", 1, map[string]string{
+				"short_code": code,
+				"client_ip":  clientIP,
+				"referrer":   referrer,
+			})
 			return c.JSON(http.StatusNotFound, errURLNotFound)
 		}
 		h.logger.Error("failed to get original url", slog.String("error", err.Error()))
 		return c.JSON(http.StatusInternalServerError, errGetFailed)
 	}
 
+	h.recorder.RecordBusiness("unique_visitors", 1, map[string]string{
+		"short_code": code,
+		"client_ip":  clientIP,
+	})
+	h.recorder.RecordBusiness("referrer_redirects", 1, map[string]string{
+		"short_code": code,
+		"referrer":   referrer,
+	})
+
 	return c.Redirect(http.StatusFound, originalURL)
+}
+
+func extractDomain(referer string) string {
+	if referer == "" {
+		return "direct"
+	}
+
+	parsed, err := url.Parse(referer)
+	if err != nil || parsed.Host == "" {
+		return "unknown"
+	}
+
+	return parsed.Host
 }
 
 func (h *Handler) handleValidationError(c echo.Context, err error) error {
