@@ -52,41 +52,22 @@ services:
             retries: 10
             start_period: 5s
 
-    seed:
-        image: oven/bun:latest
-        container_name: urlshortener-seed
+    bench:
+        build: ./bench
+        container_name: urlshortener-bench
         profiles:
             - bench
-        volumes:
-            - ./bench:/app
-        working_dir: /app
         environment:
             BASE_URL: http://api:8080
-            COUNT: ${SEED_COUNT:-100000}
-            BATCH_SIZE: ${SEED_BATCH_SIZE:-5000}
-            OUTPUT: /app/codes.json
-        command: bun run seed.ts
+            SEED_COUNT: ${SEED_COUNT:-100000}
+            SEED_BATCH_SIZE: ${SEED_BATCH_SIZE:-5000}
+            RATE: ${BENCH_RATE:-30000}
+            DURATION: ${BENCH_DURATION:-30s}
+            CREATE_RATIO: ${BENCH_CREATE_RATIO:-0.1}
+            BENCH_TYPE: ${BENCH_TYPE:-mixed}
         depends_on:
             api:
                 condition: service_healthy
-
-    k6:
-        image: grafana/k6:latest
-        container_name: urlshortener-k6
-        profiles:
-            - bench
-        volumes:
-            - ./bench:/scripts:ro
-        environment:
-            BASE_URL: http://api:8080
-            CODES_FILE: /scripts/codes.json
-            CREATE_RATIO: ${K6_CREATE_RATIO:-0.1}
-            VUS: ${K6_VUS:-50}
-            VUS_MAX: ${K6_VUS_MAX:-100}
-        command: run /scripts/mixed.ts
-        depends_on:
-            seed:
-                condition: service_completed_successfully
 
 volumes:
     postgres_data:

@@ -8,10 +8,13 @@ type URLCache struct {
 	cache *ristretto.Cache
 }
 
-func New() (*URLCache, error) {
+func New(maxSizePow2 int) (*URLCache, error) {
+	maxCost := max(1, int64(1)<<maxSizePow2)
+	numCounters := max(1, maxCost/100) // ~100 bytes per entry estimate
+
 	cache, err := ristretto.NewCache(&ristretto.Config{
-		NumCounters: 1e6,     // 1M counters for admission policy
-		MaxCost:     1 << 27, // 128MB max
+		NumCounters: numCounters,
+		MaxCost:     maxCost,
 		BufferItems: 64,
 	})
 	if err != nil {

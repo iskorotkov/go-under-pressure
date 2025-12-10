@@ -81,7 +81,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		return fmt.Errorf("failed to create shortener: %w", err)
 	}
 
-	urlCache, err := cache.New()
+	urlCache, err := cache.New(cfg.Cache.MaxSizePow2)
 	if err != nil {
 		return fmt.Errorf("failed to create cache: %w", err)
 	}

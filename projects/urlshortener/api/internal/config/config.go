@@ -6,6 +6,7 @@ type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
 	App      AppConfig
+	Cache    CacheConfig
 }
 
 type ServerConfig struct {
@@ -24,6 +25,10 @@ type DatabaseConfig struct {
 
 type AppConfig struct {
 	BaseURL string `env:"BASE_URL" envDefault:"http://localhost:8080"`
+}
+
+type CacheConfig struct {
+	MaxSizePow2 int `env:"CACHE_MAX_SIZE_POW2" envDefault:"0"` // 2^27 = 128MB
 }
 
 func Load() (*Config, error) {
