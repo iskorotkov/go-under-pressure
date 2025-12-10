@@ -34,6 +34,7 @@ services:
             POSTGRES_USER: ${POSTGRES_USER:-postgres}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
             POSTGRES_DB: ${POSTGRES_DB:-urlshortener}
+            POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-disable}
             SERVER_HOST: 0.0.0.0
             SERVER_PORT: 8080
             BASE_URL: ${BASE_URL:-http://localhost:8080}
@@ -65,8 +66,11 @@ services:
             GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
             GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
             GF_USERS_ALLOW_SIGN_UP: "false"
+            GRAFANA_DB_HOST: ${GRAFANA_DB_HOST:-postgres}
+            GRAFANA_DB_PORT: ${GRAFANA_DB_PORT:-5432}
             GRAFANA_DB_USER: ${GRAFANA_DB_USER:-grafana}
             GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-grafana_readonly}
+            GRAFANA_DB_SSLMODE: ${GRAFANA_DB_SSLMODE:-disable}
             POSTGRES_DB: ${POSTGRES_DB:-urlshortener}
         ports:
             - "${GRAFANA_PORT:-3000}:3000"
