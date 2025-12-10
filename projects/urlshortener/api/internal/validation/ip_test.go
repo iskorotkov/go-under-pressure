@@ -3,6 +3,8 @@ package validation_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"urlshortener/internal/validation"
 )
 
@@ -59,8 +61,10 @@ func TestIPValidator_ValidateHost(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := v.ValidateHost(tt.host)
-			if err != tt.wantErr {
-				t.Errorf("ValidateHost(%q) = %v, want %v", tt.host, err, tt.wantErr)
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
@@ -82,8 +86,10 @@ func TestIPValidator_ValidateHost_IPv4MappedIPv6(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := v.ValidateHost(tt.host)
-			if err != tt.wantErr {
-				t.Errorf("ValidateHost(%q) = %v, want %v", tt.host, err, tt.wantErr)
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}

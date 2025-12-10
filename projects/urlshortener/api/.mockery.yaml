@@ -1,0 +1,28 @@
+with-expecter: true
+resolve-type-alias: false
+disable-version-string: true
+issue-845-fix: true
+packages:
+  urlshortener/internal/service:
+    config:
+      dir: "internal/service/mocks"
+      outpkg: "mocks"
+    interfaces:
+      Repository:
+      Cache:
+      CodeGenerator:
+      BusinessRecorder:
+  urlshortener/internal/handler:
+    config:
+      dir: "internal/handler/mocks"
+      outpkg: "mocks"
+    interfaces:
+      URLService:
+      URLValidator:
+      BusinessRecorder:
+  urlshortener/internal/middleware:
+    config:
+      dir: "internal/middleware/mocks"
+      outpkg: "mocks"
+    interfaces:
+      HTTPRecorder:

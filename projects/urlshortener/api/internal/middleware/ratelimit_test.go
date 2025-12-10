@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v4"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"urlshortener/internal/config"
 	"urlshortener/internal/middleware"
@@ -34,9 +36,7 @@ func TestRateLimit_AllowsRequestsUnderLimit(t *testing.T) {
 		rec := httptest.NewRecorder()
 		e.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("request %d: expected status %d, got %d", i, http.StatusOK, rec.Code)
-		}
+		assert.Equal(t, http.StatusOK, rec.Code, "request %d should succeed", i)
 	}
 }
 
@@ -67,9 +67,7 @@ func TestRateLimit_BlocksRequestsOverLimit(t *testing.T) {
 		}
 	}
 
-	if !rateLimited {
-		t.Error("expected at least one request to be rate limited")
-	}
+	assert.True(t, rateLimited, "expected at least one request to be rate limited")
 }
 
 func TestRateLimit_Returns429WithCorrectResponse(t *testing.T) {
@@ -86,39 +84,30 @@ func TestRateLimit_Returns429WithCorrectResponse(t *testing.T) {
 		return c.String(http.StatusOK, "ok")
 	})
 
+	// First request uses up the burst
 	req1 := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req1.RemoteAddr = "192.168.1.3:12345"
 	rec1 := httptest.NewRecorder()
 	e.ServeHTTP(rec1, req1)
 
+	// Second request should be rate limited
 	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req2.RemoteAddr = "192.168.1.3:12345"
 	rec2 := httptest.NewRecorder()
 	e.ServeHTTP(rec2, req2)
 
-	if rec2.Code != http.StatusTooManyRequests {
-		t.Fatalf("expected status %d, got %d", http.StatusTooManyRequests, rec2.Code)
-	}
-
-	retryAfter := rec2.Header().Get("Retry-After")
-	if retryAfter != "1" {
-		t.Errorf("expected Retry-After header to be '1', got '%s'", retryAfter)
-	}
+	require.Equal(t, http.StatusTooManyRequests, rec2.Code)
+	assert.Equal(t, "1", rec2.Header().Get("Retry-After"))
 
 	var resp struct {
 		Error      string `json:"error"`
 		RetryAfter int    `json:"retry_after"`
 	}
-	if err := json.Unmarshal(rec2.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("failed to unmarshal response: %v", err)
-	}
+	err := json.Unmarshal(rec2.Body.Bytes(), &resp)
+	require.NoError(t, err)
 
-	if resp.Error != "rate limit exceeded" {
-		t.Errorf("expected error 'rate limit exceeded', got '%s'", resp.Error)
-	}
-	if resp.RetryAfter != 1 {
-		t.Errorf("expected retry_after 1, got %d", resp.RetryAfter)
-	}
+	assert.Equal(t, "rate limit exceeded", resp.Error)
+	assert.Equal(t, 1, resp.RetryAfter)
 }
 
 func TestRateLimit_DifferentIPsHaveSeparateLimits(t *testing.T) {
@@ -139,19 +128,13 @@ func TestRateLimit_DifferentIPsHaveSeparateLimits(t *testing.T) {
 	req1.RemoteAddr = "192.168.1.4:12345"
 	rec1 := httptest.NewRecorder()
 	e.ServeHTTP(rec1, req1)
-
-	if rec1.Code != http.StatusOK {
-		t.Errorf("IP1 first request: expected status %d, got %d", http.StatusOK, rec1.Code)
-	}
+	assert.Equal(t, http.StatusOK, rec1.Code, "IP1 first request should succeed")
 
 	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req2.RemoteAddr = "192.168.1.5:12345"
 	rec2 := httptest.NewRecorder()
 	e.ServeHTTP(rec2, req2)
-
-	if rec2.Code != http.StatusOK {
-		t.Errorf("IP2 first request: expected status %d, got %d", http.StatusOK, rec2.Code)
-	}
+	assert.Equal(t, http.StatusOK, rec2.Code, "IP2 first request should succeed")
 }
 
 func TestRateLimit_BypassWithCorrectSecret(t *testing.T) {
@@ -176,9 +159,7 @@ func TestRateLimit_BypassWithCorrectSecret(t *testing.T) {
 		rec := httptest.NewRecorder()
 		e.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("request %d: expected status %d, got %d", i, http.StatusOK, rec.Code)
-		}
+		assert.Equal(t, http.StatusOK, rec.Code, "request %d with bypass should succeed", i)
 	}
 }
 
@@ -197,21 +178,21 @@ func TestRateLimit_BypassWithWrongSecret(t *testing.T) {
 		return c.String(http.StatusOK, "ok")
 	})
 
+	// First request uses up the burst
 	req1 := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req1.RemoteAddr = "192.168.1.7:12345"
 	req1.Header.Set("X-Rate-Limit-Bypass", "wrong_secret")
 	rec1 := httptest.NewRecorder()
 	e.ServeHTTP(rec1, req1)
 
+	// Second request should be rate limited
 	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req2.RemoteAddr = "192.168.1.7:12345"
 	req2.Header.Set("X-Rate-Limit-Bypass", "wrong_secret")
 	rec2 := httptest.NewRecorder()
 	e.ServeHTTP(rec2, req2)
 
-	if rec2.Code != http.StatusTooManyRequests {
-		t.Errorf("expected status %d with wrong secret, got %d", http.StatusTooManyRequests, rec2.Code)
-	}
+	assert.Equal(t, http.StatusTooManyRequests, rec2.Code, "wrong secret should not bypass rate limit")
 }
 
 func TestRateLimit_BypassDisabledWhenSecretEmpty(t *testing.T) {
@@ -229,19 +210,19 @@ func TestRateLimit_BypassDisabledWhenSecretEmpty(t *testing.T) {
 		return c.String(http.StatusOK, "ok")
 	})
 
+	// First request uses up the burst
 	req1 := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req1.RemoteAddr = "192.168.1.8:12345"
 	req1.Header.Set("X-Rate-Limit-Bypass", "any_value")
 	rec1 := httptest.NewRecorder()
 	e.ServeHTTP(rec1, req1)
 
+	// Second request should be rate limited
 	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req2.RemoteAddr = "192.168.1.8:12345"
 	req2.Header.Set("X-Rate-Limit-Bypass", "any_value")
 	rec2 := httptest.NewRecorder()
 	e.ServeHTTP(rec2, req2)
 
-	if rec2.Code != http.StatusTooManyRequests {
-		t.Errorf("expected status %d when bypass disabled, got %d", http.StatusTooManyRequests, rec2.Code)
-	}
+	assert.Equal(t, http.StatusTooManyRequests, rec2.Code, "bypass should be disabled when secret is empty")
 }

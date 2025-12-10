@@ -9,7 +9,6 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"urlshortener/internal/domain"
-	"urlshortener/internal/metrics"
 	"urlshortener/internal/service"
 	"urlshortener/internal/validation"
 )
@@ -32,17 +31,17 @@ var (
 )
 
 type Handler struct {
-	urlService   *service.URLService
-	urlValidator *validation.URLValidator
+	urlService   URLService
+	urlValidator URLValidator
 	logger       *slog.Logger
-	recorder     *metrics.Recorder
+	recorder     BusinessRecorder
 }
 
 func New(
-	urlService *service.URLService,
-	urlValidator *validation.URLValidator,
+	urlService URLService,
+	urlValidator URLValidator,
 	logger *slog.Logger,
-	recorder *metrics.Recorder,
+	recorder BusinessRecorder,
 ) *Handler {
 	return &Handler{
 		urlService:   urlService,

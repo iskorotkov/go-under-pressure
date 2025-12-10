@@ -14,15 +14,15 @@ import (
 )
 
 type Recorder struct {
-	pool          *pgxpool.Pool
-	logger        *slog.Logger
-	cfg           *config.MetricsConfig
-	httpCh        chan HTTPMetric
-	businessCh    chan BusinessMetric
-	infraCh       chan InfraMetric
-	wg            sync.WaitGroup
-	shutdownOnce  sync.Once
-	shutdownCh    chan struct{}
+	pool         *pgxpool.Pool
+	logger       *slog.Logger
+	cfg          *config.MetricsConfig
+	httpCh       chan HTTPMetric
+	businessCh   chan BusinessMetric
+	infraCh      chan InfraMetric
+	wg           sync.WaitGroup
+	shutdownOnce sync.Once
+	shutdownCh   chan struct{}
 }
 
 func NewRecorder(pool *pgxpool.Pool, cfg *config.MetricsConfig, logger *slog.Logger) *Recorder {

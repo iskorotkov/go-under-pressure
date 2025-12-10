@@ -4,6 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"urlshortener/internal/validation"
 )
 
@@ -56,8 +59,10 @@ func TestURLValidator_ValidateURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := v.ValidateURL(tt.url)
-			if err != tt.wantErr {
-				t.Errorf("ValidateURL(%q) = %v, want %v", tt.url, err, tt.wantErr)
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
@@ -67,14 +72,12 @@ func TestURLValidator_ValidateURL_Length(t *testing.T) {
 	v := validation.NewURLValidator(100, 100, false)
 
 	shortURL := "https://example.com"
-	if err := v.ValidateURL(shortURL); err != nil {
-		t.Errorf("ValidateURL(%q) = %v, want nil", shortURL, err)
-	}
+	err := v.ValidateURL(shortURL)
+	assert.NoError(t, err)
 
 	longURL := "https://example.com/" + strings.Repeat("a", 100)
-	if err := v.ValidateURL(longURL); err != validation.ErrURLTooLong {
-		t.Errorf("ValidateURL(long url) = %v, want %v", err, validation.ErrURLTooLong)
-	}
+	err = v.ValidateURL(longURL)
+	assert.ErrorIs(t, err, validation.ErrURLTooLong)
 }
 
 func TestURLValidator_ValidateURL_AllowPrivateIPs(t *testing.T) {
@@ -88,9 +91,8 @@ func TestURLValidator_ValidateURL_AllowPrivateIPs(t *testing.T) {
 	}
 
 	for _, url := range privateIPs {
-		if err := v.ValidateURL(url); err != nil {
-			t.Errorf("ValidateURL(%q) with allowPrivateIPs=true = %v, want nil", url, err)
-		}
+		err := v.ValidateURL(url)
+		assert.NoError(t, err, "URL %q should be allowed with allowPrivateIPs=true", url)
 	}
 }
 
@@ -99,9 +101,7 @@ func TestURLValidator_ValidateBatch(t *testing.T) {
 
 	t.Run("empty batch", func(t *testing.T) {
 		err := v.ValidateBatch([]string{})
-		if err != validation.ErrEmptyBatch {
-			t.Errorf("ValidateBatch([]) = %v, want %v", err, validation.ErrEmptyBatch)
-		}
+		assert.ErrorIs(t, err, validation.ErrEmptyBatch)
 	})
 
 	t.Run("batch too large", func(t *testing.T) {
@@ -112,9 +112,7 @@ func TestURLValidator_ValidateBatch(t *testing.T) {
 			"https://example.com/4",
 		}
 		err := v.ValidateBatch(urls)
-		if err != validation.ErrBatchTooLarge {
-			t.Errorf("ValidateBatch(4 urls) = %v, want %v", err, validation.ErrBatchTooLarge)
-		}
+		assert.ErrorIs(t, err, validation.ErrBatchTooLarge)
 	})
 
 	t.Run("valid batch", func(t *testing.T) {
@@ -124,9 +122,7 @@ func TestURLValidator_ValidateBatch(t *testing.T) {
 			"https://example.com/3",
 		}
 		err := v.ValidateBatch(urls)
-		if err != nil {
-			t.Errorf("ValidateBatch(valid urls) = %v, want nil", err)
-		}
+		assert.NoError(t, err)
 	})
 
 	t.Run("batch with invalid urls", func(t *testing.T) {
@@ -137,14 +133,8 @@ func TestURLValidator_ValidateBatch(t *testing.T) {
 		}
 		err := v.ValidateBatch(urls)
 		batchErr, ok := err.(*validation.BatchValidationError)
-		if !ok {
-			t.Fatalf("ValidateBatch expected *BatchValidationError, got %T", err)
-		}
-		if len(batchErr.Errors) != 1 {
-			t.Errorf("Expected 1 error, got %d", len(batchErr.Errors))
-		}
-		if batchErr.Errors[0].Index != 1 {
-			t.Errorf("Expected error at index 1, got %d", batchErr.Errors[0].Index)
-		}
+		require.True(t, ok, "expected *BatchValidationError, got %T", err)
+		require.Len(t, batchErr.Errors, 1)
+		assert.Equal(t, 1, batchErr.Errors[0].Index)
 	})
 }

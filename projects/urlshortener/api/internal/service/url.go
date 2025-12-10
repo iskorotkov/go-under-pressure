@@ -7,29 +7,26 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"urlshortener/internal/cache"
 	"urlshortener/internal/domain"
-	"urlshortener/internal/metrics"
 	"urlshortener/internal/repository"
-	"urlshortener/internal/shortener"
 )
 
 var ErrURLNotFound = errors.New("url not found")
 
 type URLService struct {
-	repo      *repository.URLRepository
-	shortener *shortener.Shortener
-	cache     *cache.URLCache
+	repo      Repository
+	shortener CodeGenerator
+	cache     Cache
 	baseURL   string
-	recorder  *metrics.Recorder
+	recorder  BusinessRecorder
 }
 
 func NewURLService(
-	repo *repository.URLRepository,
-	shortener *shortener.Shortener,
-	cache *cache.URLCache,
+	repo Repository,
+	shortener CodeGenerator,
+	cache Cache,
 	baseURL string,
-	recorder *metrics.Recorder,
+	recorder BusinessRecorder,
 ) *URLService {
 	return &URLService{
 		repo:      repo,

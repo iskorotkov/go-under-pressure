@@ -1,6 +1,10 @@
 package handler
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestExtractDomain(t *testing.T) {
 	tests := []struct {
@@ -48,9 +52,7 @@ func TestExtractDomain(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := extractDomain(tt.referer)
-			if result != tt.expected {
-				t.Errorf("extractDomain(%q) = %q, want %q", tt.referer, result, tt.expected)
-			}
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

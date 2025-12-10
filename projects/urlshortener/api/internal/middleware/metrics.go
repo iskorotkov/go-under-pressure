@@ -1,5 +1,7 @@
 package middleware
 
+//go:generate go tool mockery
+
 import (
 	"cmp"
 	"time"
@@ -9,7 +11,11 @@ import (
 	"urlshortener/internal/metrics"
 )
 
-func Metrics(recorder *metrics.Recorder) echo.MiddlewareFunc {
+type HTTPRecorder interface {
+	RecordHTTP(m metrics.HTTPMetric)
+}
+
+func Metrics(recorder HTTPRecorder) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			start := time.Now()
