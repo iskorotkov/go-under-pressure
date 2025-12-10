@@ -1,17 +1,21 @@
 services:
     postgres:
-        image: postgres:18-alpine
+        image: timescale/timescaledb:latest-pg18
         container_name: urlshortener-postgres
         environment:
             POSTGRES_USER: ${POSTGRES_USER:-postgres}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
             POSTGRES_DB: ${POSTGRES_DB:-urlshortener}
+            GRAFANA_DB_USER: ${GRAFANA_DB_USER:-grafana}
+            GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-grafana_readonly}
         ports:
             - "${POSTGRES_PORT:-5432}:5432"
         volumes:
             - postgres_data:/var/lib/postgresql/data
-            - ./configs/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-            - ./configs/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+            - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+            - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+            - ./postgres/02-timescaledb.sql:/docker-entrypoint-initdb.d/02-timescaledb.sql:ro
+            - ./postgres/03-grafana-user.sh:/docker-entrypoint-initdb.d/03-grafana-user.sh:ro
         command: postgres -c config_file=/etc/postgresql/postgresql.conf
         restart: unless-stopped
         healthcheck:
@@ -32,6 +36,7 @@ services:
             SERVER_HOST: 0.0.0.0
             SERVER_PORT: 8080
             BASE_URL: ${BASE_URL:-http://localhost:8080}
+            RATE_LIMIT_BYPASS_SECRET: ${RATE_LIMIT_BYPASS_SECRET:-bench_secret_key}
         ports:
             - "${API_PORT:-8080}:8080"
         depends_on:
@@ -52,6 +57,27 @@ services:
             retries: 10
             start_period: 5s
 
+    grafana:
+        image: grafana/grafana:latest
+        container_name: urlshortener-grafana
+        environment:
+            GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+            GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+            GF_USERS_ALLOW_SIGN_UP: "false"
+            GRAFANA_DB_USER: ${GRAFANA_DB_USER:-grafana}
+            GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-grafana_readonly}
+            POSTGRES_DB: ${POSTGRES_DB:-urlshortener}
+        ports:
+            - "${GRAFANA_PORT:-3000}:3000"
+        volumes:
+            - grafana_data:/var/lib/grafana
+            - ./grafana/provisioning:/etc/grafana/provisioning:ro
+            - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+        depends_on:
+            postgres:
+                condition: service_healthy
+        restart: unless-stopped
+
     bench:
         build: ./bench
         container_name: urlshortener-bench
@@ -61,13 +87,15 @@ services:
             BASE_URL: http://api:8080
             SEED_COUNT: ${SEED_COUNT:-100000}
             SEED_BATCH_SIZE: ${SEED_BATCH_SIZE:-5000}
-            RATE: ${BENCH_RATE:-30000}
+            RATE: ${BENCH_RATE:-10000}
             DURATION: ${BENCH_DURATION:-30s}
             CREATE_RATIO: ${BENCH_CREATE_RATIO:-0.1}
             BENCH_TYPE: ${BENCH_TYPE:-mixed}
+            RATE_LIMIT_BYPASS_SECRET: ${RATE_LIMIT_BYPASS_SECRET:-bench_secret_key}
         depends_on:
             api:
                 condition: service_healthy
 
 volumes:
     postgres_data:
+    grafana_data:

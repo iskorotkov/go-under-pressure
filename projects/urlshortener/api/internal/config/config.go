@@ -3,10 +3,12 @@ package config
 import "github.com/caarlos0/env/v11"
 
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	App      AppConfig
-	Cache    CacheConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	App       AppConfig
+	Cache     CacheConfig
+	RateLimit RateLimitConfig
+	Metrics   MetricsConfig
 }
 
 type ServerConfig struct {
@@ -29,6 +31,20 @@ type AppConfig struct {
 
 type CacheConfig struct {
 	MaxSizePow2 int `env:"CACHE_MAX_SIZE_POW2" envDefault:"0"` // 2^27 = 128MB
+}
+
+type RateLimitConfig struct {
+	RPS           float64 `env:"RATE_LIMIT_RPS" envDefault:"100"`
+	Burst         int     `env:"RATE_LIMIT_BURST" envDefault:"200"`
+	ExpireMinutes int     `env:"RATE_LIMIT_EXPIRE_MINUTES" envDefault:"3"`
+	BypassSecret  string  `env:"RATE_LIMIT_BYPASS_SECRET"`
+}
+
+type MetricsConfig struct {
+	Enabled        bool `env:"METRICS_ENABLED" envDefault:"true"`
+	BufferSize     int  `env:"METRICS_BUFFER_SIZE" envDefault:"10000"`
+	FlushInterval  int  `env:"METRICS_FLUSH_INTERVAL_MS" envDefault:"100"`
+	FlushThreshold int  `env:"METRICS_FLUSH_THRESHOLD" envDefault:"1000"`
 }
 
 func Load() (*Config, error) {

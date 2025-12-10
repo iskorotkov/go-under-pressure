@@ -19,7 +19,9 @@ type batchResponse struct {
 	URLs []createResponse `json:"urls"`
 }
 
-func Run(baseURL string, count, batchSize int) ([]string, error) {
+const bypassHeader = "X-Rate-Limit-Bypass"
+
+func Run(baseURL string, count, batchSize int, bypassSecret string) ([]string, error) {
 	fmt.Printf("Seeding %d URLs (batch size: %d)...\n", count, batchSize)
 
 	codes := make([]string, 0, count)
@@ -27,7 +29,7 @@ func Run(baseURL string, count, batchSize int) ([]string, error) {
 
 	for i := 0; i < count; i += batchSize {
 		currentBatch := min(batchSize, count-i)
-		batchCodes, err := createBatch(client, baseURL, i, currentBatch)
+		batchCodes, err := createBatch(client, baseURL, i, currentBatch, bypassSecret)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create batch at %d: %w", i, err)
 		}
@@ -39,7 +41,7 @@ func Run(baseURL string, count, batchSize int) ([]string, error) {
 	return codes, nil
 }
 
-func createBatch(client *http.Client, baseURL string, startIndex, count int) ([]string, error) {
+func createBatch(client *http.Client, baseURL string, startIndex, count int, bypassSecret string) ([]string, error) {
 	urls := make([]string, count)
 	for i := range count {
 		urls[i] = fmt.Sprintf("https://example.com/seed/%d", startIndex+i)
@@ -55,6 +57,9 @@ func createBatch(client *http.Client, baseURL string, startIndex, count int) ([]
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if bypassSecret != "" {
+		req.Header.Set(bypassHeader, bypassSecret)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {

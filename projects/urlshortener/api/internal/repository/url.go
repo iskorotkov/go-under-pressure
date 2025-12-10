@@ -44,6 +44,10 @@ func (r *URLRepository) Close() {
 	r.pool.Close()
 }
 
+func (r *URLRepository) Pool() *pgxpool.Pool {
+	return r.pool
+}
+
 func (r *URLRepository) NextID(ctx context.Context) (uint, error) {
 	var id uint
 	err := r.pool.QueryRow(ctx, "SELECT nextval('urls_id_seq')").Scan(&id)

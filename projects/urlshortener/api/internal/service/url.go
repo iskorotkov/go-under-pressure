@@ -9,6 +9,7 @@ import (
 
 	"urlshortener/internal/cache"
 	"urlshortener/internal/domain"
+	"urlshortener/internal/metrics"
 	"urlshortener/internal/repository"
 	"urlshortener/internal/shortener"
 )
@@ -20,14 +21,22 @@ type URLService struct {
 	shortener *shortener.Shortener
 	cache     *cache.URLCache
 	baseURL   string
+	recorder  *metrics.Recorder
 }
 
-func NewURLService(repo *repository.URLRepository, shortener *shortener.Shortener, cache *cache.URLCache, baseURL string) *URLService {
+func NewURLService(
+	repo *repository.URLRepository,
+	shortener *shortener.Shortener,
+	cache *cache.URLCache,
+	baseURL string,
+	recorder *metrics.Recorder,
+) *URLService {
 	return &URLService{
 		repo:      repo,
 		shortener: shortener,
 		cache:     cache,
 		baseURL:   baseURL,
+		recorder:  recorder,
 	}
 }
 
@@ -46,8 +55,8 @@ func (s *URLService) CreateShortURL(ctx context.Context, originalURL string) (*d
 		return nil, fmt.Errorf("failed to create url: %w", err)
 	}
 
-	// Cache the new URL
 	s.cache.Set(shortCode, originalURL)
+	s.recorder.RecordBusiness("urls_created", 1, map[string]string{"method": "single"})
 
 	return &domain.CreateURLResponse{
 		ShortCode:   shortCode,
@@ -58,8 +67,12 @@ func (s *URLService) CreateShortURL(ctx context.Context, originalURL string) (*d
 
 func (s *URLService) GetOriginalURL(ctx context.Context, shortCode string) (string, error) {
 	if url, found := s.cache.Get(shortCode); found {
+		s.recorder.RecordBusiness("cache_hit", 1, nil)
+		s.recorder.RecordBusiness("redirects", 1, nil)
 		return url, nil
 	}
+
+	s.recorder.RecordBusiness("cache_miss", 1, nil)
 
 	url, err := s.repo.FindByShortCode(ctx, shortCode)
 	if err != nil {
@@ -70,6 +83,7 @@ func (s *URLService) GetOriginalURL(ctx context.Context, shortCode string) (stri
 	}
 
 	s.cache.Set(shortCode, url)
+	s.recorder.RecordBusiness("redirects", 1, nil)
 
 	return url, nil
 }
@@ -112,6 +126,9 @@ func (s *URLService) CreateShortURLBatch(ctx context.Context, originalURLs []str
 	if err := s.repo.CreateBatch(ctx, urlRows); err != nil {
 		return nil, fmt.Errorf("failed to create urls: %w", err)
 	}
+
+	s.recorder.RecordBusiness("urls_created", float64(count), map[string]string{"method": "batch"})
+	s.recorder.RecordBusiness("batch_size", float64(count), nil)
 
 	return responses, nil
 }

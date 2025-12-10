@@ -25,18 +25,19 @@ func run() error {
 	var codes []string
 	if cfg.BenchType != "create" {
 		var err error
-		codes, err = seed.Run(cfg.BaseURL, cfg.SeedCount, cfg.BatchSize)
+		codes, err = seed.Run(cfg.BaseURL, cfg.SeedCount, cfg.BatchSize, cfg.RateLimitBypass)
 		if err != nil {
 			return fmt.Errorf("seed failed: %w", err)
 		}
 	}
 
 	return attack.Run(&attack.Config{
-		BaseURL:     cfg.BaseURL,
-		Codes:       codes,
-		Rate:        cfg.Rate,
-		Duration:    cfg.Duration,
-		CreateRatio: cfg.CreateRatio,
-		Type:        cfg.BenchType,
+		BaseURL:         cfg.BaseURL,
+		Codes:           codes,
+		Rate:            cfg.Rate,
+		Duration:        cfg.Duration,
+		CreateRatio:     cfg.CreateRatio,
+		Type:            cfg.BenchType,
+		RateLimitBypass: cfg.RateLimitBypass,
 	})
 }

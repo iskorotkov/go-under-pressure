@@ -16,6 +16,7 @@ func New(maxSizePow2 int) (*URLCache, error) {
 		NumCounters: numCounters,
 		MaxCost:     maxCost,
 		BufferItems: 64,
+		Metrics:     true,
 	})
 	if err != nil {
 		return nil, err
@@ -38,4 +39,12 @@ func (c *URLCache) Set(shortCode, originalURL string) {
 
 func (c *URLCache) Close() {
 	c.cache.Close()
+}
+
+func (c *URLCache) Stats() (hits, misses uint64, ratio float64) {
+	metrics := c.cache.Metrics
+	hits = metrics.Hits()
+	misses = metrics.Misses()
+	ratio = metrics.Ratio()
+	return
 }

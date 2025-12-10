@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"runtime/pprof"
 	"syscall"
 	"time"
@@ -17,6 +18,8 @@ import (
 	"urlshortener/internal/cache"
 	"urlshortener/internal/config"
 	"urlshortener/internal/handler"
+	"urlshortener/internal/metrics"
+	custommiddleware "urlshortener/internal/middleware"
 	"urlshortener/internal/repository"
 	"urlshortener/internal/service"
 	"urlshortener/internal/shortener"
@@ -87,12 +90,20 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 	defer urlCache.Close()
 
-	urlService := service.NewURLService(repo, short, urlCache, cfg.App.BaseURL)
+	recorder := metrics.NewRecorder(repo.Pool(), &cfg.Metrics, logger)
+	recorder.Start(ctx)
+	defer recorder.Close()
+
+	go collectInfraMetrics(ctx, recorder, repo, urlCache)
+
+	urlService := service.NewURLService(repo, short, urlCache, cfg.App.BaseURL, recorder)
 	h := handler.New(urlService, logger)
 
 	e := echo.New()
 	e.HideBanner = true
 	e.Use(middleware.Recover())
+	e.Use(custommiddleware.Metrics(recorder))
+	e.Use(custommiddleware.RateLimit(&cfg.RateLimit, logger))
 
 	h.Register(e)
 
@@ -112,4 +123,35 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	defer cancel()
 
 	return e.Shutdown(shutdownCtx)
+}
+
+func collectInfraMetrics(ctx context.Context, recorder *metrics.Recorder, repo *repository.URLRepository, urlCache *cache.URLCache) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			poolStat := repo.Pool().Stat()
+			cacheHits, cacheMisses, cacheRatio := urlCache.Stats()
+
+			var memStats runtime.MemStats
+			runtime.ReadMemStats(&memStats)
+
+			recorder.RecordInfra(metrics.InfraMetric{
+				Time:          time.Now(),
+				PoolAcquired:  int(poolStat.AcquiredConns()),
+				PoolIdle:      int(poolStat.IdleConns()),
+				PoolTotal:     int(poolStat.TotalConns()),
+				PoolMax:       int(poolStat.MaxConns()),
+				CacheHits:     int64(cacheHits),
+				CacheMisses:   int64(cacheMisses),
+				CacheHitRatio: cacheRatio,
+				Goroutines:    runtime.NumGoroutine(),
+				HeapAllocMB:   float64(memStats.HeapAlloc) / 1024 / 1024,
+			})
+		}
+	}
 }
