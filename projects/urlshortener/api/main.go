@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -115,11 +116,11 @@ func run(ctx context.Context, logger *slog.Logger) error {
 
 	h.Register(e)
 
-	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-	logger.Info("starting server", slog.String("addr", addr))
+	httpAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+	logger.Info("starting HTTP server", slog.String("addr", httpAddr))
 
-	server := &http.Server{
-		Addr:         addr,
+	httpServer := &http.Server{
+		Addr:         httpAddr,
 		Handler:      e,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -127,18 +128,51 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("server error", slog.String("error", err.Error()))
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("http server error", slog.String("error", err.Error()))
 		}
 	}()
 
+	var httpsServer *http.Server
+	if cfg.TLS.Enabled {
+		httpsAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.TLS.Port)
+		logger.Info("starting HTTPS server", slog.String("addr", httpsAddr))
+
+		httpsServer = &http.Server{
+			Addr:    httpsAddr,
+			Handler: e,
+			TLSConfig: &tls.Config{
+				MinVersion: tls.VersionTLS13,
+			},
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 30 * time.Second,
+			IdleTimeout:  120 * time.Second,
+		}
+
+		go func() {
+			if err := httpsServer.ListenAndServeTLS(cfg.TLS.CertFile, cfg.TLS.KeyFile); err != nil && err != http.ErrServerClosed {
+				logger.Error("https server error", slog.String("error", err.Error()))
+			}
+		}()
+	}
+
 	<-ctx.Done()
-	logger.Info("shutting down server")
+	logger.Info("shutting down servers")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	return server.Shutdown(shutdownCtx)
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("http server shutdown failed: %w", err)
+	}
+
+	if httpsServer != nil {
+		if err := httpsServer.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("https server shutdown failed: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func collectInfraMetrics(ctx context.Context, recorder *metrics.Recorder, repo *repository.URLRepository, urlCache *cache.URLCache) {

@@ -4,6 +4,7 @@ import "github.com/caarlos0/env/v11"
 
 type Config struct {
 	Server     ServerConfig
+	TLS        TLSConfig
 	Database   DatabaseConfig
 	App        AppConfig
 	Cache      CacheConfig
@@ -15,6 +16,13 @@ type Config struct {
 type ServerConfig struct {
 	Host string `env:"SERVER_HOST" envDefault:"localhost"`
 	Port int    `env:"SERVER_PORT" envDefault:"8080"`
+}
+
+type TLSConfig struct {
+	Enabled  bool   `env:"TLS_ENABLED" envDefault:"false"`
+	Port     int    `env:"TLS_PORT" envDefault:"8443"`
+	CertFile string `env:"TLS_CERT_FILE" envDefault:"/certs/api/server.crt"`
+	KeyFile  string `env:"TLS_KEY_FILE" envDefault:"/certs/api/server.key"`
 }
 
 type DatabaseConfig struct {
