@@ -115,6 +115,7 @@ services:
         environment:
             CADDY_DOMAIN: ${CADDY_DOMAIN:-localhost}
             CADDY_GRAFANA_HOST: ${CADDY_GRAFANA_HOST:-grafana.localhost}
+            CADDY_LOCAL_CERTS: ${CADDY_LOCAL_CERTS:-local_certs}
         depends_on:
             api:
                 condition: service_healthy

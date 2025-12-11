@@ -1,3 +1,7 @@
+{
+	{$CADDY_LOCAL_CERTS}
+}
+
 http://{$CADDY_DOMAIN} {
 	reverse_proxy api:8080
 }
