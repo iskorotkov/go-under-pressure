@@ -11,6 +11,7 @@ type Config struct {
 	RateLimit  RateLimitConfig
 	Metrics    MetricsConfig
 	Validation ValidationConfig
+	Pprof      PprofConfig
 }
 
 type ServerConfig struct {
@@ -61,6 +62,11 @@ type ValidationConfig struct {
 	MaxBatchSize       int    `env:"VALIDATION_MAX_BATCH_SIZE" envDefault:"5000"`
 	MaxRequestBodySize string `env:"VALIDATION_MAX_BODY_SIZE" envDefault:"1M"`
 	AllowPrivateIPs    bool   `env:"VALIDATION_ALLOW_PRIVATE_IPS" envDefault:"false"`
+}
+
+type PprofConfig struct {
+	Enabled bool   `env:"PPROF_ENABLED" envDefault:"false"`
+	Secret  string `env:"PPROF_SECRET"`
 }
 
 func Load() (*Config, error) {

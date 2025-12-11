@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"runtime/pprof"
 	"syscall"
 	"time"
 
@@ -28,23 +27,6 @@ import (
 )
 
 func main() {
-	pprofEnabled := os.Getenv("PPROF") != ""
-
-	if pprofEnabled {
-		cpuFile, err := os.Create("cpu.prof")
-		if err != nil {
-			slog.Error("failed to create CPU profile", slog.String("error", err.Error()))
-			os.Exit(1)
-		}
-		defer func() { _ = cpuFile.Close() }()
-
-		if err := pprof.StartCPUProfile(cpuFile); err != nil {
-			slog.Error("failed to start CPU profile", slog.String("error", err.Error()))
-			os.Exit(1)
-		}
-		defer pprof.StopCPUProfile()
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -53,19 +35,6 @@ func main() {
 	if err := run(ctx, logger); err != nil {
 		logger.Error("application failed", slog.String("error", err.Error()))
 		os.Exit(1)
-	}
-
-	if pprofEnabled {
-		memFile, err := os.Create("mem.prof")
-		if err != nil {
-			logger.Error("failed to create memory profile", slog.String("error", err.Error()))
-			return
-		}
-		defer func() { _ = memFile.Close() }()
-
-		if err := pprof.WriteHeapProfile(memFile); err != nil {
-			logger.Error("failed to write memory profile", slog.String("error", err.Error()))
-		}
 	}
 }
 
@@ -115,6 +84,12 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	e.Use(custommiddleware.RateLimit(&cfg.RateLimit, logger))
 
 	h.Register(e)
+
+	if cfg.Pprof.Enabled {
+		pprofGroup := e.Group("/debug/pprof", custommiddleware.PprofAuth(cfg.Pprof.Secret))
+		custommiddleware.RegisterPprof(pprofGroup)
+		logger.Info("pprof endpoints enabled", slog.String("path", "/debug/pprof/*"))
+	}
 
 	httpAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	logger.Info("starting HTTP server", slog.String("addr", httpAddr))
