@@ -77,6 +77,7 @@ services:
             TLS_KEY_FILE: /certs/server.key
             PPROF_ENABLED: ${PPROF_ENABLED:-false}
             PPROF_SECRET: ${PPROF_SECRET:-}
+            CACHE_MAX_SIZE_POW2: ${CACHE_MAX_SIZE_POW2:-0}
         ports:
             - "${API_PORT:-8080}:${API_PORT:-8080}"
             - "${API_TLS_PORT:-8443}:${API_TLS_PORT:-8443}"
