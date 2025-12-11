@@ -153,8 +153,8 @@ services:
             CREATE_RATIO: ${BENCH_CREATE_RATIO:-0.1}
             BENCH_TYPE: ${BENCH_TYPE:-mixed}
             RATE_LIMIT_BYPASS_SECRET: ${RATE_LIMIT_BYPASS_SECRET:-bench_secret_key}
-            CONNECTIONS: ${BENCH_CONNECTIONS:-2000}
-            MAX_WORKERS: ${BENCH_MAX_WORKERS:-5000}
+            CONNECTIONS: ${BENCH_CONNECTIONS:-10000}
+            MAX_WORKERS: ${BENCH_MAX_WORKERS:-10000}
         depends_on:
             api:
                 condition: service_healthy

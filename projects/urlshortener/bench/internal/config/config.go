@@ -17,8 +17,8 @@ type Config struct {
 	RateLimitBypass    string        `env:"RATE_LIMIT_BYPASS_SECRET"`
 	InsecureSkipVerify bool          `env:"INSECURE_SKIP_VERIFY" envDefault:"false"`
 	SeedTimeout        time.Duration `env:"SEED_TIMEOUT" envDefault:"30s"`
-	Connections        int           `env:"CONNECTIONS" envDefault:"1000"`
-	MaxWorkers         uint64        `env:"MAX_WORKERS" envDefault:"1000"`
+	Connections        int           `env:"CONNECTIONS" envDefault:"10000"`
+	MaxWorkers         uint64        `env:"MAX_WORKERS" envDefault:"10000"`
 }
 
 func Load() (*Config, error) {
