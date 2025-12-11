@@ -1,6 +1,7 @@
 package attack
 
 import (
+	"crypto/tls"
 	"fmt"
 	"os"
 	"time"
@@ -9,13 +10,14 @@ import (
 )
 
 type Config struct {
-	BaseURL         string
-	Codes           []string
-	Rate            int
-	Duration        time.Duration
-	CreateRatio     float64
-	Type            string
-	RateLimitBypass string
+	BaseURL            string
+	Codes              []string
+	Rate               int
+	Duration           time.Duration
+	CreateRatio        float64
+	Type               string
+	RateLimitBypass    string
+	InsecureSkipVerify bool
 }
 
 func Run(cfg *Config) error {
@@ -46,6 +48,9 @@ func Run(cfg *Config) error {
 		vegeta.Timeout(5*time.Second),
 		vegeta.MaxBody(0),
 		vegeta.HTTP2(false),
+		vegeta.TLSConfig(&tls.Config{
+			InsecureSkipVerify: cfg.InsecureSkipVerify,
+		}),
 	)
 
 	fmt.Printf("Starting %s attack: rate=%d/s duration=%s\n", cfg.Type, cfg.Rate, cfg.Duration)

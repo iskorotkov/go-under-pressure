@@ -2,9 +2,11 @@ package seed
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 type batchRequest struct {
@@ -21,11 +23,16 @@ type batchResponse struct {
 
 const bypassHeader = "X-Rate-Limit-Bypass"
 
-func Run(baseURL string, count, batchSize int, bypassSecret string) ([]string, error) {
+func Run(baseURL string, count, batchSize int, bypassSecret string, insecureSkipVerify bool, timeout time.Duration) ([]string, error) {
 	fmt.Printf("Seeding %d URLs (batch size: %d)...\n", count, batchSize)
 
 	codes := make([]string, 0, count)
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: insecureSkipVerify},
+		},
+	}
 
 	for i := 0; i < count; i += batchSize {
 		currentBatch := min(batchSize, count-i)
