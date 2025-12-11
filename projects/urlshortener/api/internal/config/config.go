@@ -15,8 +15,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Host string `env:"SERVER_HOST" envDefault:"localhost"`
-	Port int    `env:"SERVER_PORT" envDefault:"8080"`
+	Host           string `env:"SERVER_HOST" envDefault:"localhost"`
+	Port           int    `env:"SERVER_PORT" envDefault:"8080"`
+	MaxConnections int    `env:"SERVER_MAX_CONNECTIONS" envDefault:"0"`
 }
 
 type TLSConfig struct {

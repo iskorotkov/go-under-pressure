@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"golang.org/x/net/netutil"
 
 	"urlshortener/internal/cache"
 	"urlshortener/internal/config"
@@ -92,10 +94,19 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 
 	httpAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-	logger.Info("starting HTTP server", slog.String("addr", httpAddr))
+	logger.Info("starting HTTP server",
+		slog.String("addr", httpAddr),
+		slog.Int("max_connections", cfg.Server.MaxConnections))
+
+	httpListener, err := net.Listen("tcp", httpAddr)
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP listener: %w", err)
+	}
+	if cfg.Server.MaxConnections > 0 {
+		httpListener = netutil.LimitListener(httpListener, cfg.Server.MaxConnections)
+	}
 
 	httpServer := &http.Server{
-		Addr:         httpAddr,
 		Handler:      e,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -103,7 +114,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 
 	go func() {
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.Serve(httpListener); err != nil && err != http.ErrServerClosed {
 			logger.Error("http server error", slog.String("error", err.Error()))
 		}
 	}()
@@ -111,21 +122,37 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	var httpsServer *http.Server
 	if cfg.TLS.Enabled {
 		httpsAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.TLS.Port)
-		logger.Info("starting HTTPS server", slog.String("addr", httpsAddr))
+		logger.Info("starting HTTPS server",
+			slog.String("addr", httpsAddr),
+			slog.Int("max_connections", cfg.Server.MaxConnections))
+
+		httpsListener, err := net.Listen("tcp", httpsAddr)
+		if err != nil {
+			return fmt.Errorf("failed to create HTTPS listener: %w", err)
+		}
+		if cfg.Server.MaxConnections > 0 {
+			httpsListener = netutil.LimitListener(httpsListener, cfg.Server.MaxConnections)
+		}
+
+		cert, err := tls.LoadX509KeyPair(cfg.TLS.CertFile, cfg.TLS.KeyFile)
+		if err != nil {
+			return fmt.Errorf("failed to load TLS certificate: %w", err)
+		}
+
+		tlsListener := tls.NewListener(httpsListener, &tls.Config{
+			MinVersion:   tls.VersionTLS13,
+			Certificates: []tls.Certificate{cert},
+		})
 
 		httpsServer = &http.Server{
-			Addr:    httpsAddr,
-			Handler: e,
-			TLSConfig: &tls.Config{
-				MinVersion: tls.VersionTLS13,
-			},
+			Handler:      e,
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 30 * time.Second,
 			IdleTimeout:  120 * time.Second,
 		}
 
 		go func() {
-			if err := httpsServer.ListenAndServeTLS(cfg.TLS.CertFile, cfg.TLS.KeyFile); err != nil && err != http.ErrServerClosed {
+			if err := httpsServer.Serve(tlsListener); err != nil && err != http.ErrServerClosed {
 				logger.Error("https server error", slog.String("error", err.Error()))
 			}
 		}()

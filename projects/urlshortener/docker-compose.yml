@@ -78,6 +78,7 @@ services:
             PPROF_ENABLED: ${PPROF_ENABLED:-false}
             PPROF_SECRET: ${PPROF_SECRET:-}
             CACHE_MAX_SIZE_POW2: ${CACHE_MAX_SIZE_POW2:-0}
+            SERVER_MAX_CONNECTIONS: ${SERVER_MAX_CONNECTIONS:-0}
         ports:
             - "${API_PORT:-8080}:${API_PORT:-8080}"
             - "${API_TLS_PORT:-8443}:${API_TLS_PORT:-8443}"
