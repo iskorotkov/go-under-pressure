@@ -23,4 +23,4 @@ See README.md for full list.
 - `POST /api/v1/urls` - Create short URL
 - `POST /api/v1/urls/batch` - Batch create URLs
 - `GET /:code` - Redirect to original URL
-- `GET /health` - Health check
+- `GET /api/v1/health` - Health check

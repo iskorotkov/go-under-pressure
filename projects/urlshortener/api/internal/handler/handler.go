@@ -52,8 +52,8 @@ func New(
 }
 
 func (h *Handler) Register(e *echo.Echo) {
-	e.GET("/health", h.Health)
 	api := e.Group("/api/v1")
+	api.GET("/health", h.Health)
 	api.POST("/urls", h.CreateURL)
 	api.POST("/urls/batch", h.CreateURLBatch)
 	e.GET("/:code", h.Redirect)

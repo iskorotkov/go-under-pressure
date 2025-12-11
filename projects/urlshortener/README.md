@@ -16,7 +16,7 @@ Grafana available at http://localhost:3000
 
 ### Health Check
 ```
-GET /health -> {"status": "ok"}
+GET /api/v1/health -> {"status": "ok"}
 ```
 
 ### Create Short URL

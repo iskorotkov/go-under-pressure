@@ -338,7 +338,7 @@ func TestHealth(t *testing.T) {
 	h, _, _, _ := newTestHandler(t)
 
 	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
