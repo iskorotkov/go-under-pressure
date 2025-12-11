@@ -1,4 +1,34 @@
 services:
+    cert-init:
+        image: alpine:latest
+        container_name: urlshortener-cert-init
+        environment:
+            POSTGRES_SSL_ENABLED: ${POSTGRES_SSL_ENABLED:-false}
+        volumes:
+            - postgres_certs:/certs
+        command:
+            - sh
+            - -c
+            - |
+                if [ "$$POSTGRES_SSL_ENABLED" != "true" ]; then
+                    echo "SSL disabled, skipping certificate generation"
+                    exit 0
+                fi
+                if [ -f /certs/server.crt ] && [ -f /certs/server.key ]; then
+                    echo "Certificates already exist, skipping generation"
+                    exit 0
+                fi
+                echo "Generating self-signed certificates..."
+                apk add --no-cache openssl
+                openssl req -new -x509 -days 3650 -nodes \
+                    -subj "/CN=postgres" \
+                    -keyout /certs/server.key \
+                    -out /certs/server.crt
+                chmod 600 /certs/server.key
+                chmod 644 /certs/server.crt
+                chown 70:70 /certs/server.key /certs/server.crt
+                echo "Certificates generated successfully"
+
     postgres:
         image: timescale/timescaledb:latest-pg18
         container_name: urlshortener-postgres
@@ -8,16 +38,22 @@ services:
             POSTGRES_DB: ${POSTGRES_DB:-urlshortener}
             GRAFANA_DB_USER: ${GRAFANA_DB_USER:-grafana}
             GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-grafana_readonly}
+            POSTGRES_SSL_ENABLED: ${POSTGRES_SSL_ENABLED:-false}
         ports:
             - "${POSTGRES_PORT:-5432}:5432"
         volumes:
             - postgres_data:/var/lib/postgresql/data
+            - postgres_certs:/var/lib/postgresql/certs
             - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-            - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+            - ./postgres/00-ssl-config.sh:/docker-entrypoint-initdb.d/00-ssl-config.sh:ro
+            - ./postgres/01-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
             - ./postgres/02-timescaledb.sql:/docker-entrypoint-initdb.d/02-timescaledb.sql:ro
             - ./postgres/03-grafana-user.sh:/docker-entrypoint-initdb.d/03-grafana-user.sh:ro
             - ./postgres/04-pg-metrics.sql:/docker-entrypoint-initdb.d/04-pg-metrics.sql:ro
         command: postgres -c config_file=/etc/postgresql/postgresql.conf
+        depends_on:
+            cert-init:
+                condition: service_completed_successfully
         restart: unless-stopped
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
@@ -123,6 +159,7 @@ services:
 
 volumes:
     postgres_data:
+    postgres_certs:
     grafana_data:
     caddy_data:
     caddy_config:
