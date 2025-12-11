@@ -40,5 +40,7 @@ func run() error {
 		Type:               cfg.BenchType,
 		RateLimitBypass:    cfg.RateLimitBypass,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		Connections:        cfg.Connections,
+		MaxWorkers:         cfg.MaxWorkers,
 	})
 }

@@ -128,11 +128,13 @@ services:
             BASE_URL: http://api:8080
             SEED_COUNT: ${SEED_COUNT:-100000}
             SEED_BATCH_SIZE: ${SEED_BATCH_SIZE:-5000}
-            RATE: ${BENCH_RATE:-10000}
+            RATE: ${BENCH_RATE:-30000}
             DURATION: ${BENCH_DURATION:-30s}
             CREATE_RATIO: ${BENCH_CREATE_RATIO:-0.1}
             BENCH_TYPE: ${BENCH_TYPE:-mixed}
             RATE_LIMIT_BYPASS_SECRET: ${RATE_LIMIT_BYPASS_SECRET:-bench_secret_key}
+            CONNECTIONS: ${BENCH_CONNECTIONS:-2000}
+            MAX_WORKERS: ${BENCH_MAX_WORKERS:-5000}
         depends_on:
             api:
                 condition: service_healthy

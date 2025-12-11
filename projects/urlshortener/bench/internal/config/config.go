@@ -10,13 +10,15 @@ type Config struct {
 	BaseURL            string        `env:"BASE_URL" envDefault:"http://localhost:8080"`
 	SeedCount          int           `env:"SEED_COUNT" envDefault:"100000"`
 	BatchSize          int           `env:"SEED_BATCH_SIZE" envDefault:"5000"`
-	Rate               int           `env:"RATE" envDefault:"1000"`
+	Rate               int           `env:"RATE" envDefault:"10000"`
 	Duration           time.Duration `env:"DURATION" envDefault:"30s"`
 	CreateRatio        float64       `env:"CREATE_RATIO" envDefault:"0.1"`
 	BenchType          string        `env:"BENCH_TYPE" envDefault:"mixed"`
 	RateLimitBypass    string        `env:"RATE_LIMIT_BYPASS_SECRET"`
 	InsecureSkipVerify bool          `env:"INSECURE_SKIP_VERIFY" envDefault:"false"`
 	SeedTimeout        time.Duration `env:"SEED_TIMEOUT" envDefault:"30s"`
+	Connections        int           `env:"CONNECTIONS" envDefault:"1000"`
+	MaxWorkers         uint64        `env:"MAX_WORKERS" envDefault:"1000"`
 }
 
 func Load() (*Config, error) {

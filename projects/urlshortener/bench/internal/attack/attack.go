@@ -18,6 +18,8 @@ type Config struct {
 	Type               string
 	RateLimitBypass    string
 	InsecureSkipVerify bool
+	Connections        int
+	MaxWorkers         uint64
 }
 
 func Run(cfg *Config) error {
@@ -44,10 +46,11 @@ func Run(cfg *Config) error {
 	attacker := vegeta.NewAttacker(
 		vegeta.Redirects(-1),
 		vegeta.KeepAlive(true),
-		vegeta.Connections(10000),
+		vegeta.Connections(cfg.Connections),
+		vegeta.MaxWorkers(cfg.MaxWorkers),
 		vegeta.Timeout(5*time.Second),
 		vegeta.MaxBody(0),
-		vegeta.HTTP2(false),
+		vegeta.HTTP2(true),
 		vegeta.TLSConfig(&tls.Config{
 			InsecureSkipVerify: cfg.InsecureSkipVerify,
 		}),
