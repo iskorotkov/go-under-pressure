@@ -32,6 +32,10 @@ services:
     postgres:
         image: timescale/timescaledb:latest-pg18
         container_name: urlshortener-postgres
+        ulimits:
+            nofile:
+                soft: 65535
+                hard: 65535
         environment:
             POSTGRES_USER: ${POSTGRES_USER:-postgres}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -64,6 +68,14 @@ services:
     api:
         build: ./api
         container_name: urlshortener-api
+        ulimits:
+            nofile:
+                soft: 65535
+                hard: 65535
+        sysctls:
+            - net.core.somaxconn=65535
+            - net.ipv4.tcp_tw_reuse=1
+            - net.ipv4.ip_local_port_range=1024 65535
         environment:
             POSTGRES_HOST: postgres
             POSTGRES_PORT: 5432
@@ -124,6 +136,14 @@ services:
         container_name: urlshortener-bench
         profiles:
             - bench
+        ulimits:
+            nofile:
+                soft: 65535
+                hard: 65535
+        sysctls:
+            - net.core.somaxconn=65535
+            - net.ipv4.tcp_tw_reuse=1
+            - net.ipv4.ip_local_port_range=1024 65535
         environment:
             BASE_URL: http://api:8080
             SEED_COUNT: ${SEED_COUNT:-100000}
@@ -142,6 +162,13 @@ services:
     caddy:
         image: caddy:2-alpine
         container_name: urlshortener-caddy
+        ulimits:
+            nofile:
+                soft: 65535
+                hard: 65535
+        sysctls:
+            - net.core.somaxconn=65535
+            - net.ipv4.tcp_tw_reuse=1
         ports:
             - "${CADDY_HTTP_PORT:-8080}:80"
             - "${CADDY_HTTPS_PORT:-8443}:443"

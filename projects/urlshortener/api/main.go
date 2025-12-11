@@ -118,8 +118,16 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	logger.Info("starting server", slog.String("addr", addr))
 
+	server := &http.Server{
+		Addr:         addr,
+		Handler:      e,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
 	go func() {
-		if err := e.Start(addr); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("server error", slog.String("error", err.Error()))
 		}
 	}()
@@ -130,7 +138,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	return e.Shutdown(shutdownCtx)
+	return server.Shutdown(shutdownCtx)
 }
 
 func collectInfraMetrics(ctx context.Context, recorder *metrics.Recorder, repo *repository.URLRepository, urlCache *cache.URLCache) {

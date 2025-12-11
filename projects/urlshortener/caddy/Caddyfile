@@ -1,13 +1,39 @@
 {
 	{$CADDY_LOCAL_CERTS}
+	servers {
+		timeouts {
+			read_body 10s
+			read_header 5s
+			write 30s
+			idle 120s
+		}
+	}
 }
 
 http://{$CADDY_DOMAIN} {
-	reverse_proxy api:8080
+	reverse_proxy api:8080 {
+		transport http {
+			keepalive 120s
+			keepalive_idle_conns 500
+			keepalive_idle_conns_per_host 100
+			max_conns_per_host 0
+			dial_timeout 5s
+			response_header_timeout 30s
+		}
+	}
 }
 
 https://{$CADDY_DOMAIN} {
-	reverse_proxy api:8080
+	reverse_proxy api:8080 {
+		transport http {
+			keepalive 120s
+			keepalive_idle_conns 500
+			keepalive_idle_conns_per_host 100
+			max_conns_per_host 0
+			dial_timeout 5s
+			response_header_timeout 30s
+		}
+	}
 }
 
 http://{$CADDY_GRAFANA_HOST} {
