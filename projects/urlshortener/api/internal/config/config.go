@@ -28,12 +28,16 @@ type TLSConfig struct {
 }
 
 type DatabaseConfig struct {
-	Host     string `env:"POSTGRES_HOST" envDefault:"localhost"`
-	Port     int    `env:"POSTGRES_PORT" envDefault:"5432"`
-	User     string `env:"POSTGRES_USER" envDefault:"postgres"`
-	Password string `env:"POSTGRES_PASSWORD" envDefault:"postgres"`
-	DBName   string `env:"POSTGRES_DB" envDefault:"urlshortener"`
-	SSLMode  string `env:"POSTGRES_SSLMODE" envDefault:"disable"`
+	Host                string `env:"POSTGRES_HOST" envDefault:"localhost"`
+	Port                int    `env:"POSTGRES_PORT" envDefault:"5432"`
+	User                string `env:"POSTGRES_USER" envDefault:"postgres"`
+	Password            string `env:"POSTGRES_PASSWORD" envDefault:"postgres"`
+	DBName              string `env:"POSTGRES_DB" envDefault:"urlshortener"`
+	SSLMode             string `env:"POSTGRES_SSLMODE" envDefault:"disable"`
+	PoolMaxConns        int    `env:"DB_POOL_MAX_CONNS" envDefault:"50"`
+	PoolMinConns        int    `env:"DB_POOL_MIN_CONNS" envDefault:"25"`
+	PoolMaxConnLifetime int    `env:"DB_POOL_MAX_CONN_LIFETIME_MIN" envDefault:"15"`
+	PoolMaxConnIdleTime int    `env:"DB_POOL_MAX_CONN_IDLE_MIN" envDefault:"5"`
 }
 
 type AppConfig struct {

@@ -107,10 +107,11 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 
 	httpServer := &http.Server{
-		Handler:      e,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		Handler:        e,
+		ReadTimeout:    5 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		IdleTimeout:    120 * time.Second,
+		MaxHeaderBytes: 1 << 14, // 16KB
 	}
 
 	go func() {
@@ -140,15 +141,18 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		}
 
 		tlsListener := tls.NewListener(httpsListener, &tls.Config{
-			MinVersion:   tls.VersionTLS13,
-			Certificates: []tls.Certificate{cert},
+			MinVersion:             tls.VersionTLS13,
+			Certificates:           []tls.Certificate{cert},
+			CurvePreferences:       []tls.CurveID{tls.X25519},
+			SessionTicketsDisabled: false,
 		})
 
 		httpsServer = &http.Server{
-			Handler:      e,
-			ReadTimeout:  10 * time.Second,
-			WriteTimeout: 30 * time.Second,
-			IdleTimeout:  120 * time.Second,
+			Handler:        e,
+			ReadTimeout:    5 * time.Second,
+			WriteTimeout:   10 * time.Second,
+			IdleTimeout:    120 * time.Second,
+			MaxHeaderBytes: 1 << 14, // 16KB
 		}
 
 		go func() {

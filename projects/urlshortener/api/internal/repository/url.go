@@ -26,10 +26,10 @@ func NewURLRepository(cfg *config.DatabaseConfig) (*URLRepository, error) {
 		return nil, fmt.Errorf("failed to parse pool config: %w", err)
 	}
 
-	poolConfig.MaxConns = 200
-	poolConfig.MinConns = 100
-	poolConfig.MaxConnLifetime = 15 * time.Minute
-	poolConfig.MaxConnIdleTime = 5 * time.Minute
+	poolConfig.MaxConns = int32(cfg.PoolMaxConns)
+	poolConfig.MinConns = int32(cfg.PoolMinConns)
+	poolConfig.MaxConnLifetime = time.Duration(cfg.PoolMaxConnLifetime) * time.Minute
+	poolConfig.MaxConnIdleTime = time.Duration(cfg.PoolMaxConnIdleTime) * time.Minute
 	poolConfig.MaxConnLifetimeJitter = 2 * time.Minute
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
