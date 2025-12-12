@@ -183,6 +183,7 @@ services:
             - net.ipv4.tcp_tw_reuse=1
             - net.ipv4.ip_local_port_range=1024 65535
         environment:
+            GOMAXPROCS: "2"
             BASE_URL: http://api:${API_PORT:-8080}
             SEED_COUNT: ${SEED_COUNT:-100000}
             SEED_BATCH_SIZE: ${SEED_BATCH_SIZE:-5000}
@@ -196,6 +197,14 @@ services:
         depends_on:
             api:
                 condition: service_healthy
+        deploy:
+            resources:
+                limits:
+                    cpus: "2.0"
+                    memory: 1024M
+                reservations:
+                    cpus: "1.0"
+                    memory: 512M
 
 volumes:
     postgres_data:

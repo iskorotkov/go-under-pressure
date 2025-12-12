@@ -4,25 +4,38 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/http"
-	"time"
+	"sync"
+	"sync/atomic"
 
 	vegeta "github.com/tsenart/vegeta/v12/lib"
 )
 
 const bypassHeader = "X-Rate-Limit-Bypass"
 
+var (
+	urlCounter atomic.Uint64
+	bodyPool   = sync.Pool{
+		New: func() any {
+			return make([]byte, 0, 64)
+		},
+	}
+)
+
 func CreateTargeter(baseURL, bypassSecret string) vegeta.Targeter {
 	header := http.Header{"Content-Type": []string{"application/json"}}
 	if bypassSecret != "" {
 		header.Set(bypassHeader, bypassSecret)
 	}
+	url := baseURL + "/api/v1/urls"
 
 	return func(t *vegeta.Target) error {
 		t.Method = http.MethodPost
-		t.URL = baseURL + "/api/v1/urls"
+		t.URL = url
 		t.Header = header
-		t.Body = []byte(fmt.Sprintf(`{"url":"https://example.com/%d/%d"}`,
-			time.Now().UnixNano(), rand.Int()))
+
+		buf := bodyPool.Get().([]byte)[:0]
+		buf = fmt.Appendf(buf, `{"url":"https://example.com/%d"}`, urlCounter.Add(1))
+		t.Body = buf
 		return nil
 	}
 }

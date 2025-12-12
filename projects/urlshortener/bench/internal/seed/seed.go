@@ -2,11 +2,16 @@ package seed
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime"
+	"sync/atomic"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 type batchRequest struct {
@@ -24,24 +29,51 @@ type batchResponse struct {
 const bypassHeader = "X-Rate-Limit-Bypass"
 
 func Run(baseURL string, count, batchSize int, bypassSecret string, insecureSkipVerify bool, timeout time.Duration) ([]string, error) {
-	fmt.Printf("Seeding %d URLs (batch size: %d)...\n", count, batchSize)
+	numWorkers := runtime.NumCPU() * 2
+	fmt.Printf("Seeding %d URLs (batch size: %d, workers: %d)...\n", count, batchSize, numWorkers)
 
-	codes := make([]string, 0, count)
 	client := &http.Client{
 		Timeout: timeout,
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: insecureSkipVerify},
+			TLSClientConfig:     &tls.Config{InsecureSkipVerify: insecureSkipVerify},
+			MaxIdleConns:        numWorkers * 2,
+			MaxIdleConnsPerHost: numWorkers * 2,
+			IdleConnTimeout:     90 * time.Second,
+			ForceAttemptHTTP2:   true,
 		},
 	}
 
-	for i := 0; i < count; i += batchSize {
-		currentBatch := min(batchSize, count-i)
-		batchCodes, err := createBatch(client, baseURL, i, currentBatch, bypassSecret)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create batch at %d: %w", i, err)
-		}
-		codes = append(codes, batchCodes...)
-		fmt.Printf("\rProgress: %d/%d", len(codes), count)
+	numBatches := (count + batchSize - 1) / batchSize
+	results := make([][]string, numBatches)
+	var progress atomic.Int64
+
+	g, _ := errgroup.WithContext(context.Background())
+	g.SetLimit(numWorkers)
+
+	for i := range numBatches {
+		batchIndex := i
+		startIndex := batchIndex * batchSize
+		currentBatch := min(batchSize, count-startIndex)
+
+		g.Go(func() error {
+			batchCodes, err := createBatch(client, baseURL, startIndex, currentBatch, bypassSecret)
+			if err != nil {
+				return fmt.Errorf("failed to create batch at %d: %w", startIndex, err)
+			}
+			results[batchIndex] = batchCodes
+			done := progress.Add(int64(len(batchCodes)))
+			fmt.Printf("\rProgress: %d/%d", done, count)
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	codes := make([]string, 0, count)
+	for _, batch := range results {
+		codes = append(codes, batch...)
 	}
 
 	fmt.Printf("\nSeeding complete: %d codes\n", len(codes))
