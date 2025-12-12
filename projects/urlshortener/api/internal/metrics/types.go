@@ -16,7 +16,7 @@ type BusinessMetric struct {
 	Time       time.Time
 	MetricName string
 	Value      float64
-	Labels     map[string]string
+	LabelsJSON []byte
 }
 
 type InfraMetric struct {

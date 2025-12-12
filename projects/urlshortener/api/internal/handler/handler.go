@@ -2,9 +2,11 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/labstack/echo/v4"
 
@@ -115,25 +117,19 @@ func (h *Handler) Redirect(c echo.Context) error {
 	originalURL, err := h.urlService.GetOriginalURL(c.Request().Context(), code)
 	if err != nil {
 		if errors.Is(err, service.ErrURLNotFound) {
-			h.recorder.RecordBusiness("url_not_found", 1, map[string]string{
-				"short_code": code,
-				"client_ip":  clientIP,
-				"referrer":   referrer,
-			})
+			labels := fmt.Appendf(nil, `{"short_code":%q,"client_ip":%q,"referrer":%q}`, code, clientIP, referrer)
+			h.recorder.RecordBusiness(time.Now(), "url_not_found", 1, labels)
 			return c.JSON(http.StatusNotFound, errURLNotFound)
 		}
 		h.logger.Error("failed to get original url", slog.String("error", err.Error()))
 		return c.JSON(http.StatusInternalServerError, errGetFailed)
 	}
 
-	h.recorder.RecordBusiness("unique_visitors", 1, map[string]string{
-		"short_code": code,
-		"client_ip":  clientIP,
-	})
-	h.recorder.RecordBusiness("referrer_redirects", 1, map[string]string{
-		"short_code": code,
-		"referrer":   referrer,
-	})
+	now := time.Now()
+	visitorsLabels := fmt.Appendf(nil, `{"short_code":%q,"client_ip":%q}`, code, clientIP)
+	referrerLabels := fmt.Appendf(nil, `{"short_code":%q,"referrer":%q}`, code, referrer)
+	h.recorder.RecordBusiness(now, "unique_visitors", 1, visitorsLabels)
+	h.recorder.RecordBusiness(now, "referrer_redirects", 1, referrerLabels)
 
 	return c.Redirect(http.StatusFound, originalURL)
 }
@@ -142,12 +138,10 @@ func extractDomain(referer string) string {
 	if referer == "" {
 		return "direct"
 	}
-
 	parsed, err := url.Parse(referer)
 	if err != nil || parsed.Host == "" {
 		return "unknown"
 	}
-
 	return parsed.Host
 }
 

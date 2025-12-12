@@ -2,9 +2,9 @@ package metrics
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -14,15 +14,18 @@ import (
 )
 
 type Recorder struct {
-	pool         *pgxpool.Pool
-	logger       *slog.Logger
-	cfg          *config.MetricsConfig
-	httpCh       chan HTTPMetric
-	businessCh   chan BusinessMetric
-	infraCh      chan InfraMetric
-	wg           sync.WaitGroup
-	shutdownOnce sync.Once
-	shutdownCh   chan struct{}
+	pool            *pgxpool.Pool
+	logger          *slog.Logger
+	cfg             *config.MetricsConfig
+	httpCh          chan HTTPMetric
+	businessCh      chan BusinessMetric
+	infraCh         chan InfraMetric
+	wg              sync.WaitGroup
+	shutdownOnce    sync.Once
+	shutdownCh      chan struct{}
+	droppedHTTP     atomic.Uint64
+	droppedBusiness atomic.Uint64
+	droppedInfra    atomic.Uint64
 }
 
 func NewRecorder(pool *pgxpool.Pool, cfg *config.MetricsConfig, logger *slog.Logger) *Recorder {
@@ -44,24 +47,24 @@ func (r *Recorder) RecordHTTP(m HTTPMetric) {
 	select {
 	case r.httpCh <- m:
 	default:
-		r.logger.Warn("http metrics buffer full, dropping metric")
+		r.droppedHTTP.Add(1)
 	}
 }
 
-func (r *Recorder) RecordBusiness(name string, value float64, labels map[string]string) {
+func (r *Recorder) RecordBusiness(t time.Time, name string, value float64, labelsJSON []byte) {
 	if !r.cfg.Enabled {
 		return
 	}
 	m := BusinessMetric{
-		Time:       time.Now(),
+		Time:       t,
 		MetricName: name,
 		Value:      value,
-		Labels:     labels,
+		LabelsJSON: labelsJSON,
 	}
 	select {
 	case r.businessCh <- m:
 	default:
-		r.logger.Warn("business metrics buffer full, dropping metric")
+		r.droppedBusiness.Add(1)
 	}
 }
 
@@ -72,7 +75,7 @@ func (r *Recorder) RecordInfra(m InfraMetric) {
 	select {
 	case r.infraCh <- m:
 	default:
-		r.logger.Warn("infra metrics buffer full, dropping metric")
+		r.droppedInfra.Add(1)
 	}
 }
 
@@ -165,6 +168,10 @@ func (r *Recorder) writeHTTPBatch(ctx context.Context, batch []HTTPMetric) {
 	if err != nil {
 		r.logger.Error("failed to write http metrics batch", slog.String("error", err.Error()))
 	}
+
+	if dropped := r.droppedHTTP.Swap(0); dropped > 0 {
+		r.logger.Warn("dropped http metrics", slog.Uint64("count", dropped))
+	}
 }
 
 func (r *Recorder) flushBusinessMetrics(ctx context.Context, interval time.Duration) {
@@ -220,8 +227,7 @@ func (r *Recorder) writeBusinessBatch(ctx context.Context, batch []BusinessMetri
 
 	rows := make([][]any, len(batch))
 	for i, m := range batch {
-		labelsJSON, _ := json.Marshal(m.Labels)
-		rows[i] = []any{m.Time, m.MetricName, m.Value, labelsJSON}
+		rows[i] = []any{m.Time, m.MetricName, m.Value, m.LabelsJSON}
 	}
 
 	_, err := r.pool.CopyFrom(ctx,
@@ -231,6 +237,10 @@ func (r *Recorder) writeBusinessBatch(ctx context.Context, batch []BusinessMetri
 	)
 	if err != nil {
 		r.logger.Error("failed to write business metrics batch", slog.String("error", err.Error()))
+	}
+
+	if dropped := r.droppedBusiness.Swap(0); dropped > 0 {
+		r.logger.Warn("dropped business metrics", slog.Uint64("count", dropped))
 	}
 }
 
@@ -303,5 +313,9 @@ func (r *Recorder) writeInfraBatch(ctx context.Context, batch []InfraMetric) {
 	)
 	if err != nil {
 		r.logger.Error("failed to write infra metrics batch", slog.String("error", err.Error()))
+	}
+
+	if dropped := r.droppedInfra.Swap(0); dropped > 0 {
+		r.logger.Warn("dropped infra metrics", slog.Uint64("count", dropped))
 	}
 }

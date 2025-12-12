@@ -4,6 +4,7 @@ package handler
 
 import (
 	"context"
+	"time"
 
 	"urlshortener/internal/domain"
 )
@@ -20,5 +21,5 @@ type URLValidator interface {
 }
 
 type BusinessRecorder interface {
-	RecordBusiness(name string, value float64, labels map[string]string)
+	RecordBusiness(t time.Time, name string, value float64, labelsJSON []byte)
 }

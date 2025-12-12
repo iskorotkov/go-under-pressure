@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +31,7 @@ func TestCreateShortURL_Success(t *testing.T) {
 	shortener.EXPECT().Generate(uint(42)).Return("xyz789", nil)
 
 	recorder := mocks.NewMockBusinessRecorder(t)
-	recorder.EXPECT().RecordBusiness(mock.Anything, mock.Anything, mock.Anything).Return()
+	recorder.EXPECT().RecordBusiness(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
 
@@ -110,8 +111,8 @@ func TestGetOriginalURL_CacheHit(t *testing.T) {
 
 	var recordedMetrics []string
 	recorder := mocks.NewMockBusinessRecorder(t)
-	recorder.EXPECT().RecordBusiness(mock.Anything, mock.Anything, mock.Anything).
-		Run(func(name string, value float64, labels map[string]string) {
+	recorder.EXPECT().RecordBusiness(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Run(func(t time.Time, name string, value float64, labelsJSON []byte) {
 			recordedMetrics = append(recordedMetrics, name)
 		}).Return().Times(2)
 
@@ -138,8 +139,8 @@ func TestGetOriginalURL_CacheMiss_DBFound(t *testing.T) {
 
 	var recordedMetrics []string
 	recorder := mocks.NewMockBusinessRecorder(t)
-	recorder.EXPECT().RecordBusiness(mock.Anything, mock.Anything, mock.Anything).
-		Run(func(name string, value float64, labels map[string]string) {
+	recorder.EXPECT().RecordBusiness(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Run(func(t time.Time, name string, value float64, labelsJSON []byte) {
 			recordedMetrics = append(recordedMetrics, name)
 		}).Return().Times(2)
 
@@ -163,7 +164,7 @@ func TestGetOriginalURL_NotFound(t *testing.T) {
 	shortener := mocks.NewMockCodeGenerator(t)
 
 	recorder := mocks.NewMockBusinessRecorder(t)
-	recorder.EXPECT().RecordBusiness("cache_miss", float64(1), mock.Anything).Return()
+	recorder.EXPECT().RecordBusiness(mock.Anything, "cache_miss", float64(1), mock.Anything).Return()
 
 	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
 
@@ -183,7 +184,7 @@ func TestGetOriginalURL_DBError(t *testing.T) {
 	shortener := mocks.NewMockCodeGenerator(t)
 
 	recorder := mocks.NewMockBusinessRecorder(t)
-	recorder.EXPECT().RecordBusiness("cache_miss", float64(1), mock.Anything).Return()
+	recorder.EXPECT().RecordBusiness(mock.Anything, "cache_miss", float64(1), mock.Anything).Return()
 
 	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
 
@@ -220,7 +221,7 @@ func TestCreateShortURLBatch_Success(t *testing.T) {
 	shortener.EXPECT().Generate(uint(2)).Return("code2", nil)
 
 	recorder := mocks.NewMockBusinessRecorder(t)
-	recorder.EXPECT().RecordBusiness(mock.Anything, mock.Anything, mock.Anything).Return().Times(2)
+	recorder.EXPECT().RecordBusiness(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return().Times(2)
 
 	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
 

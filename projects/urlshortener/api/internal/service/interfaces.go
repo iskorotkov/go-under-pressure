@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"urlshortener/internal/repository"
 )
@@ -26,5 +27,5 @@ type CodeGenerator interface {
 }
 
 type BusinessRecorder interface {
-	RecordBusiness(name string, value float64, labels map[string]string)
+	RecordBusiness(t time.Time, name string, value float64, labelsJSON []byte)
 }

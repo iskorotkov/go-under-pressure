@@ -224,8 +224,8 @@ func TestRedirect_Success(t *testing.T) {
 	h, svc, _, recorder := newTestHandler(t)
 
 	svc.EXPECT().GetOriginalURL(mock.Anything, "abc123").Return("https://example.com/redirect-target", nil)
-	recorder.EXPECT().RecordBusiness("unique_visitors", float64(1), mock.Anything).Return()
-	recorder.EXPECT().RecordBusiness("referrer_redirects", float64(1), mock.Anything).Return()
+	recorder.EXPECT().RecordBusiness(mock.Anything, "unique_visitors", float64(1), mock.Anything).Return()
+	recorder.EXPECT().RecordBusiness(mock.Anything, "referrer_redirects", float64(1), mock.Anything).Return()
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/abc123", nil)
@@ -261,7 +261,7 @@ func TestRedirect_NotFound(t *testing.T) {
 	h, svc, _, recorder := newTestHandler(t)
 
 	svc.EXPECT().GetOriginalURL(mock.Anything, "notfound").Return("", service.ErrURLNotFound)
-	recorder.EXPECT().RecordBusiness("url_not_found", float64(1), mock.Anything).Return()
+	recorder.EXPECT().RecordBusiness(mock.Anything, "url_not_found", float64(1), mock.Anything).Return()
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/notfound", nil)

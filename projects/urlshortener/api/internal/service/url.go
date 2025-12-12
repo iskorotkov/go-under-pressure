@@ -4,11 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"urlshortener/internal/domain"
 	"urlshortener/internal/repository"
+)
+
+var (
+	labelsSingle = []byte(`{"method":"single"}`)
+	labelsBatch  = []byte(`{"method":"batch"}`)
 )
 
 var ErrURLNotFound = errors.New("url not found")
@@ -53,7 +59,7 @@ func (s *URLService) CreateShortURL(ctx context.Context, originalURL string) (*d
 	}
 
 	s.cache.Set(shortCode, originalURL)
-	s.recorder.RecordBusiness("urls_created", 1, map[string]string{"method": "single"})
+	s.recorder.RecordBusiness(time.Now(), "urls_created", 1, labelsSingle)
 
 	return &domain.CreateURLResponse{
 		ShortCode:   shortCode,
@@ -63,16 +69,17 @@ func (s *URLService) CreateShortURL(ctx context.Context, originalURL string) (*d
 }
 
 func (s *URLService) GetOriginalURL(ctx context.Context, shortCode string) (string, error) {
-	cacheLabels := map[string]string{"short_code": shortCode}
+	now := time.Now()
+	cacheLabels := fmt.Appendf(nil, `{"short_code":%q}`, shortCode)
 
 	if url, found := s.cache.Get(shortCode); found {
-		s.recorder.RecordBusiness("cache_hit", 1, cacheLabels)
-		redirectLabels := map[string]string{"short_code": shortCode, "original_url": url}
-		s.recorder.RecordBusiness("redirects", 1, redirectLabels)
+		s.recorder.RecordBusiness(now, "cache_hit", 1, cacheLabels)
+		redirectLabels := fmt.Appendf(nil, `{"short_code":%q,"original_url":%q}`, shortCode, url)
+		s.recorder.RecordBusiness(now, "redirects", 1, redirectLabels)
 		return url, nil
 	}
 
-	s.recorder.RecordBusiness("cache_miss", 1, cacheLabels)
+	s.recorder.RecordBusiness(now, "cache_miss", 1, cacheLabels)
 
 	url, err := s.repo.FindByShortCode(ctx, shortCode)
 	if err != nil {
@@ -83,8 +90,8 @@ func (s *URLService) GetOriginalURL(ctx context.Context, shortCode string) (stri
 	}
 
 	s.cache.Set(shortCode, url)
-	redirectLabels := map[string]string{"short_code": shortCode, "original_url": url}
-	s.recorder.RecordBusiness("redirects", 1, redirectLabels)
+	redirectLabels := fmt.Appendf(nil, `{"short_code":%q,"original_url":%q}`, shortCode, url)
+	s.recorder.RecordBusiness(now, "redirects", 1, redirectLabels)
 
 	return url, nil
 }
@@ -128,8 +135,9 @@ func (s *URLService) CreateShortURLBatch(ctx context.Context, originalURLs []str
 		return nil, fmt.Errorf("failed to create urls: %w", err)
 	}
 
-	s.recorder.RecordBusiness("urls_created", float64(count), map[string]string{"method": "batch"})
-	s.recorder.RecordBusiness("batch_size", float64(count), nil)
+	now := time.Now()
+	s.recorder.RecordBusiness(now, "urls_created", float64(count), labelsBatch)
+	s.recorder.RecordBusiness(now, "batch_size", float64(count), nil)
 
 	return responses, nil
 }
