@@ -47,14 +47,36 @@ GET /:code -> 302 redirect
 | Variable | Default | Description |
 |----------|---------|-------------|
 | SERVER_HOST | localhost | Server bind address |
-| SERVER_PORT | 8080 | Server port |
+| API_PORT | 8080 | Server port |
+| BASE_URL | http://localhost:8080 | Base URL for short links |
 | POSTGRES_HOST | localhost | Database host |
 | POSTGRES_PORT | 5432 | Database port |
 | POSTGRES_USER | postgres | Database user |
 | POSTGRES_PASSWORD | postgres | Database password |
 | POSTGRES_DB | urlshortener | Database name |
-| BASE_URL | http://localhost:8080 | Base URL for short links |
-| CACHE_MAX_SIZE_POW2 | 0 | Cache size as 2^n bytes (0=disabled, 27=128MB) |
+| POSTGRES_SSLMODE | disable | PostgreSQL SSL mode |
+| DB_POOL_MAX_CONNS | 50 | Max database connections |
+| DB_POOL_MIN_CONNS | 25 | Min database connections |
+| CACHE_MAX_SIZE_POW2 | 27 | Cache size as 2^n (27=128MB) |
+| SERVER_MAX_CONNECTIONS | 10000 | Max concurrent connections |
+| PPROF_ENABLED | false | Enable pprof profiling |
+| PPROF_SECRET | (empty) | Secret for pprof access |
+
+### SSL/TLS
+| Variable | Default | Description |
+|----------|---------|-------------|
+| SSL_ENABLED | false | Enable TLS |
+| API_TLS_PORT | 8443 | HTTPS port |
+| API_HOST | localhost | API hostname for cert |
+| GRAFANA_HOST | localhost | Grafana hostname for cert |
+
+### Grafana
+| Variable | Default | Description |
+|----------|---------|-------------|
+| GRAFANA_USER | admin | Admin username |
+| GRAFANA_PASSWORD | admin | Admin password |
+| GRAFANA_PORT | 3000 | Grafana port |
+| GRAFANA_PROTOCOL | http | http or https |
 
 ### Benchmark
 | Variable | Default | Description |
@@ -65,11 +87,18 @@ GET /:code -> 302 redirect
 | BENCH_DURATION | 30s | Benchmark duration |
 | BENCH_CREATE_RATIO | 0.1 | Ratio of create vs redirect (0.1 = 10% creates) |
 | BENCH_TYPE | mixed | Benchmark type: create, redirect, mixed |
+| BENCH_CONNECTIONS | 10000 | Concurrent connections |
+| BENCH_MAX_WORKERS | 10000 | Max worker goroutines |
 
 ## Benchmarking
 
 ```bash
 docker compose --profile bench up bench
+```
+
+Optimized benchmarking (reduces Docker overhead from ~40% to ~5-10%):
+```bash
+docker compose -f docker-compose.yml -f docker-compose.bench.yml --profile bench up
 ```
 
 Custom settings:
