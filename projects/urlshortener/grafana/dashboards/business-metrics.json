@@ -123,7 +123,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  time_bucket('5 minutes', time) AS time,\n  labels->>'method' AS metric,\n  SUM(value)::float AS value\nFROM business_metrics\nWHERE metric_name = 'urls_created' AND $__timeFilter(time)\nGROUP BY 1, 2\nORDER BY 1",
+          "rawSql": "SELECT\n  bucket AS time,\n  method AS metric,\n  total_created::float AS value\nFROM business_metrics_urls_agg\nWHERE $__timeFilter(bucket)\nORDER BY 1",
           "refId": "A"
         }
       ],
@@ -214,7 +214,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  time_bucket('1 minute', time) AS time,\n  SUM(value)::float AS redirects\nFROM business_metrics\nWHERE metric_name = 'redirects' AND $__timeFilter(time)\nGROUP BY 1\nORDER BY 1",
+          "rawSql": "SELECT\n  bucket AS time,\n  SUM(total_redirects)::float AS redirects\nFROM business_metrics_redirects_agg\nWHERE $__timeFilter(bucket)\nGROUP BY 1\nORDER BY 1",
           "refId": "A"
         }
       ],
@@ -285,7 +285,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  COALESCE(\n    SUM(CASE WHEN metric_name = 'cache_hit' THEN value END) /\n    NULLIF(SUM(CASE WHEN metric_name IN ('cache_hit', 'cache_miss') THEN value END), 0) * 100,\n    0\n  ) AS hit_ratio\nFROM business_metrics\nWHERE time > NOW() - INTERVAL '5 minutes'",
+          "rawSql": "SELECT\n  COALESCE(\n    SUM(cache_hits) / NULLIF(SUM(cache_hits + cache_misses), 0) * 100,\n    0\n  ) AS hit_ratio\nFROM business_metrics_cache_agg\nWHERE bucket > NOW() - INTERVAL '5 minutes'",
           "refId": "A"
         }
       ],
@@ -347,7 +347,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  time_bucket('1 hour', time) AS time,\n  SUM(value)::float AS urls\nFROM business_metrics\nWHERE metric_name = 'urls_created'\n  AND time >= date_trunc('day', NOW())\n  AND time < date_trunc('day', NOW()) + INTERVAL '1 day'\nGROUP BY 1\nORDER BY 1",
+          "rawSql": "SELECT\n  time_bucket('1 hour', bucket) AS time,\n  SUM(total_created)::float AS urls\nFROM business_metrics_urls_agg\nWHERE bucket >= date_trunc('day', NOW())\n  AND bucket < date_trunc('day', NOW()) + INTERVAL '1 day'\nGROUP BY 1\nORDER BY 1",
           "refId": "A"
         }
       ],
@@ -409,7 +409,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  time_bucket('1 hour', time) AS time,\n  SUM(value)::float AS redirects\nFROM business_metrics\nWHERE metric_name = 'redirects'\n  AND time >= date_trunc('day', NOW())\n  AND time < date_trunc('day', NOW()) + INTERVAL '1 day'\nGROUP BY 1\nORDER BY 1",
+          "rawSql": "SELECT\n  time_bucket('1 hour', bucket) AS time,\n  SUM(total_redirects)::float AS redirects\nFROM business_metrics_redirects_agg\nWHERE bucket >= date_trunc('day', NOW())\n  AND bucket < date_trunc('day', NOW()) + INTERVAL '1 day'\nGROUP BY 1\nORDER BY 1",
           "refId": "A"
         }
       ],
@@ -562,7 +562,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH top_codes AS (\n  SELECT labels->>'short_code' AS code\n  FROM business_metrics\n  WHERE metric_name = 'redirects'\n    AND labels->>'short_code' IS NOT NULL\n    AND $__timeFilter(time)\n  GROUP BY 1\n  ORDER BY SUM(value) DESC\n  LIMIT 5\n)\nSELECT\n  time_bucket('1 minute', time) AS time,\n  labels->>'short_code' AS metric,\n  SUM(value)::float AS value\nFROM business_metrics\nWHERE metric_name = 'redirects'\n  AND labels->>'short_code' IN (SELECT code FROM top_codes)\n  AND $__timeFilter(time)\nGROUP BY 1, 2\nORDER BY 1",
+          "rawSql": "WITH top_codes AS (\n  SELECT short_code AS code\n  FROM business_metrics_redirects_agg\n  WHERE short_code IS NOT NULL\n    AND $__timeFilter(bucket)\n  GROUP BY 1\n  ORDER BY SUM(total_redirects) DESC\n  LIMIT 5\n)\nSELECT\n  bucket AS time,\n  short_code AS metric,\n  SUM(total_redirects)::float AS value\nFROM business_metrics_redirects_agg\nWHERE short_code IN (SELECT code FROM top_codes)\n  AND $__timeFilter(bucket)\nGROUP BY 1, 2\nORDER BY 1",
           "refId": "A"
         }
       ],
@@ -632,7 +632,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  labels->>'short_code' AS short_code,\n  SUM(value)::float AS redirects\nFROM business_metrics\nWHERE metric_name = 'redirects'\n  AND labels->>'short_code' IS NOT NULL\n  AND $__timeFilter(time)\nGROUP BY 1\nORDER BY redirects DESC\nLIMIT 10",
+          "rawSql": "SELECT\n  short_code,\n  SUM(total_redirects)::float AS redirects\nFROM business_metrics_redirects_agg\nWHERE short_code IS NOT NULL\n  AND $__timeFilter(bucket)\nGROUP BY 1\nORDER BY redirects DESC\nLIMIT 10",
           "refId": "A"
         }
       ],
@@ -723,7 +723,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "WITH top_urls AS (\n  SELECT labels->>'original_url' AS url\n  FROM business_metrics\n  WHERE metric_name = 'redirects'\n    AND labels->>'original_url' IS NOT NULL\n    AND $__timeFilter(time)\n  GROUP BY 1\n  ORDER BY SUM(value) DESC\n  LIMIT 5\n)\nSELECT\n  time_bucket('1 minute', time) AS time,\n  CASE\n    WHEN LENGTH(labels->>'original_url') > 40\n    THEN LEFT(labels->>'original_url', 37) || '...'\n    ELSE labels->>'original_url'\n  END AS metric,\n  SUM(value)::float AS value\nFROM business_metrics\nWHERE metric_name = 'redirects'\n  AND labels->>'original_url' IN (SELECT url FROM top_urls)\n  AND $__timeFilter(time)\nGROUP BY 1, labels->>'original_url'\nORDER BY 1",
+          "rawSql": "WITH top_urls AS (\n  SELECT original_url AS url\n  FROM business_metrics_redirects_agg\n  WHERE original_url IS NOT NULL\n    AND $__timeFilter(bucket)\n  GROUP BY 1\n  ORDER BY SUM(total_redirects) DESC\n  LIMIT 5\n)\nSELECT\n  bucket AS time,\n  CASE\n    WHEN LENGTH(original_url) > 40\n    THEN LEFT(original_url, 37) || '...'\n    ELSE original_url\n  END AS metric,\n  SUM(total_redirects)::float AS value\nFROM business_metrics_redirects_agg\nWHERE original_url IN (SELECT url FROM top_urls)\n  AND $__timeFilter(bucket)\nGROUP BY 1, original_url\nORDER BY 1",
           "refId": "A"
         }
       ],
@@ -793,7 +793,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  CASE\n    WHEN LENGTH(labels->>'original_url') > 60\n    THEN LEFT(labels->>'original_url', 57) || '...'\n    ELSE labels->>'original_url'\n  END AS original_url,\n  SUM(value)::float AS redirects\nFROM business_metrics\nWHERE metric_name = 'redirects'\n  AND labels->>'original_url' IS NOT NULL\n  AND $__timeFilter(time)\nGROUP BY labels->>'original_url'\nORDER BY redirects DESC\nLIMIT 10",
+          "rawSql": "SELECT\n  CASE\n    WHEN LENGTH(original_url) > 60\n    THEN LEFT(original_url, 57) || '...'\n    ELSE original_url\n  END AS original_url,\n  SUM(total_redirects)::float AS redirects\nFROM business_metrics_redirects_agg\nWHERE original_url IS NOT NULL\n  AND $__timeFilter(bucket)\nGROUP BY original_url\nORDER BY redirects DESC\nLIMIT 10",
           "refId": "A"
         }
       ],
@@ -885,7 +885,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  time_bucket('1 minute', time) AS time,\n  COUNT(DISTINCT labels->>'client_ip')::float AS unique_visitors\nFROM business_metrics\nWHERE metric_name = 'unique_visitors'\n  AND $__timeFilter(time)\nGROUP BY 1\nORDER BY 1",
+          "rawSql": "SELECT\n  bucket AS time,\n  total_visits::float AS unique_visitors\nFROM business_metrics_visitors_agg\nWHERE $__timeFilter(bucket)\nORDER BY 1",
           "refId": "A"
         }
       ],
@@ -1169,7 +1169,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  time_bucket('1 minute', time) AS time,\n  metric_name,\n  SUM(value)::float AS value\nFROM business_metrics\nWHERE metric_name IN ('cache_hit', 'cache_miss') AND $__timeFilter(time)\nGROUP BY 1, 2\nORDER BY 1",
+          "rawSql": "SELECT bucket AS time, 'cache_hit' AS metric_name, cache_hits::float AS value\nFROM business_metrics_cache_agg\nWHERE $__timeFilter(bucket)\nUNION ALL\nSELECT bucket AS time, 'cache_miss' AS metric_name, cache_misses::float AS value\nFROM business_metrics_cache_agg\nWHERE $__timeFilter(bucket)\nORDER BY 1",
           "refId": "A"
         }
       ],

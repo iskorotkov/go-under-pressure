@@ -92,7 +92,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  time_bucket('1 minute', time) AS time,\n  path,\n  COUNT(*)::float AS requests\nFROM http_metrics\nWHERE $__timeFilter(time)\nGROUP BY 1, 2\nORDER BY 1",
+          "rawSql": "SELECT\n  bucket AS time,\n  path,\n  SUM(request_count)::float AS requests\nFROM http_metrics_agg\nWHERE $__timeFilter(bucket)\nGROUP BY 1, 2\nORDER BY 1",
           "refId": "A"
         }
       ],
@@ -193,7 +193,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  time_bucket('1 minute', time) AS time,\n  COALESCE(COUNT(*) FILTER (WHERE status_code >= 500)::float / NULLIF(COUNT(*), 0) * 100, 0) AS \"5xx Error %\",\n  COALESCE(COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500)::float / NULLIF(COUNT(*), 0) * 100, 0) AS \"4xx Error %\"\nFROM http_metrics\nWHERE $__timeFilter(time)\nGROUP BY 1\nORDER BY 1",
+          "rawSql": "SELECT\n  bucket AS time,\n  COALESCE(SUM(error_count)::float / NULLIF(SUM(request_count), 0) * 100, 0) AS \"5xx Error %\"\nFROM http_metrics_agg\nWHERE $__timeFilter(bucket)\nGROUP BY 1\nORDER BY 1",
           "refId": "A"
         }
       ],
@@ -453,7 +453,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  time_bucket('1 minute', time) AS time,\n  COUNT(*) FILTER (WHERE status_code >= 200 AND status_code < 300)::float AS \"2xx\",\n  COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400)::float AS \"3xx\",\n  COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500)::float AS \"4xx\",\n  COUNT(*) FILTER (WHERE status_code >= 500)::float AS \"5xx\"\nFROM http_metrics\nWHERE $__timeFilter(time)\nGROUP BY 1\nORDER BY 1",
+          "rawSql": "SELECT\n  bucket AS time,\n  SUM(count_2xx)::float AS \"2xx\",\n  SUM(count_3xx)::float AS \"3xx\",\n  SUM(count_4xx)::float AS \"4xx\",\n  SUM(error_count)::float AS \"5xx\"\nFROM http_metrics_agg\nWHERE $__timeFilter(bucket)\nGROUP BY 1\nORDER BY 1",
           "refId": "A"
         }
       ],
@@ -557,7 +557,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  path,\n  method,\n  COUNT(*) AS requests,\n  ROUND(AVG(duration_ms)::numeric, 2) AS avg_ms,\n  ROUND(MAX(duration_ms)::numeric, 2) AS max_ms,\n  ROUND(percentile_cont(0.99) WITHIN GROUP (ORDER BY duration_ms)::numeric, 2) AS p99_ms\nFROM http_metrics\nWHERE $__timeFilter(time)\nGROUP BY path, method\nORDER BY avg_ms DESC\nLIMIT 20",
+          "rawSql": "SELECT\n  path,\n  method,\n  SUM(request_count)::bigint AS requests,\n  ROUND(AVG(avg_duration_ms)::numeric, 2) AS avg_ms,\n  ROUND(MAX(p99_ms)::numeric, 2) AS max_ms,\n  ROUND(AVG(p99_ms)::numeric, 2) AS p99_ms\nFROM http_metrics_agg\nWHERE $__timeFilter(bucket)\nGROUP BY path, method\nORDER BY avg_ms DESC\nLIMIT 20",
           "refId": "A"
         }
       ],
