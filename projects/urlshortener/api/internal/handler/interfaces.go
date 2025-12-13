@@ -1,7 +1,5 @@
 package handler
 
-//go:generate go tool mockery
-
 import (
 	"context"
 	"time"

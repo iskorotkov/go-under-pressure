@@ -1,7 +1,5 @@
 package middleware
 
-//go:generate go tool mockery
-
 import (
 	"cmp"
 	"time"
