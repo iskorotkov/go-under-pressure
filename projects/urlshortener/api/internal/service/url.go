@@ -54,7 +54,7 @@ func (s *URLService) CreateShortURL(ctx context.Context, originalURL string) (*d
 		return nil, fmt.Errorf("failed to generate short code: %w", err)
 	}
 
-	if err := s.repo.Create(ctx, id, shortCode, originalURL); err != nil {
+	if err := s.repo.Create(ctx, shortCode, originalURL); err != nil {
 		return nil, fmt.Errorf("failed to create url: %w", err)
 	}
 
@@ -117,7 +117,6 @@ func (s *URLService) CreateShortURLBatch(ctx context.Context, originalURLs []str
 		}
 
 		urlRows[i] = repository.URLRow{
-			ID:          ids[i],
 			ShortCode:   shortCode,
 			OriginalURL: originalURL,
 		}

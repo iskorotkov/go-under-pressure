@@ -1,20 +1,36 @@
 -- Enable TimescaleDB extension
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 
+-- ============================================================================
 -- HTTP request metrics (hypertable)
+-- ============================================================================
 CREATE TABLE IF NOT EXISTS http_metrics (
     time        TIMESTAMPTZ NOT NULL,
     method      TEXT NOT NULL,
     path        TEXT NOT NULL,
-    status_code INT NOT NULL,
-    duration_ms DOUBLE PRECISION NOT NULL,
+    status_code SMALLINT NOT NULL,
+    duration_ms REAL NOT NULL,
     client_ip   TEXT,
     error       TEXT
 );
 
-SELECT create_hypertable('http_metrics', by_range('time', INTERVAL '1 day'), if_not_exists => TRUE);
+-- Create hypertable with 1-hour chunks for faster compression
+SELECT create_hypertable('http_metrics', by_range('time', INTERVAL '1 hour'), if_not_exists => TRUE);
 
+-- Enable compression with automatic inline compression after 1 hour
+ALTER TABLE http_metrics SET (
+    timescaledb.compress,
+    timescaledb.compress_segmentby = 'method, path',
+    timescaledb.compress_orderby = 'time DESC',
+    timescaledb.compress_chunk_time_interval = '1 hour'
+);
+
+-- Backup compression policy (catches anything missed by inline compression)
+SELECT add_compression_policy('http_metrics', INTERVAL '2 hours', if_not_exists => TRUE);
+
+-- ============================================================================
 -- Business metrics (hypertable)
+-- ============================================================================
 CREATE TABLE IF NOT EXISTS business_metrics (
     time        TIMESTAMPTZ NOT NULL,
     metric_name TEXT NOT NULL,
@@ -22,9 +38,22 @@ CREATE TABLE IF NOT EXISTS business_metrics (
     labels      JSONB
 );
 
-SELECT create_hypertable('business_metrics', by_range('time', INTERVAL '1 day'), if_not_exists => TRUE);
+-- Create hypertable with 1-hour chunks
+SELECT create_hypertable('business_metrics', by_range('time', INTERVAL '1 hour'), if_not_exists => TRUE);
 
+-- Enable compression with automatic inline compression
+ALTER TABLE business_metrics SET (
+    timescaledb.compress,
+    timescaledb.compress_segmentby = 'metric_name',
+    timescaledb.compress_orderby = 'time DESC',
+    timescaledb.compress_chunk_time_interval = '1 hour'
+);
+
+SELECT add_compression_policy('business_metrics', INTERVAL '2 hours', if_not_exists => TRUE);
+
+-- ============================================================================
 -- Infrastructure metrics (hypertable)
+-- ============================================================================
 CREATE TABLE IF NOT EXISTS infra_metrics (
     time            TIMESTAMPTZ NOT NULL,
     pool_acquired   INT,
@@ -33,14 +62,26 @@ CREATE TABLE IF NOT EXISTS infra_metrics (
     pool_max        INT,
     cache_hits      BIGINT,
     cache_misses    BIGINT,
-    cache_hit_ratio DOUBLE PRECISION,
+    cache_hit_ratio REAL,
     goroutines      INT,
-    heap_alloc_mb   DOUBLE PRECISION
+    heap_alloc_mb   REAL
 );
 
-SELECT create_hypertable('infra_metrics', by_range('time', INTERVAL '1 day'), if_not_exists => TRUE);
+-- Create hypertable with 1-hour chunks
+SELECT create_hypertable('infra_metrics', by_range('time', INTERVAL '1 hour'), if_not_exists => TRUE);
 
+-- Enable compression with automatic inline compression
+ALTER TABLE infra_metrics SET (
+    timescaledb.compress,
+    timescaledb.compress_orderby = 'time DESC',
+    timescaledb.compress_chunk_time_interval = '1 hour'
+);
+
+SELECT add_compression_policy('infra_metrics', INTERVAL '2 hours', if_not_exists => TRUE);
+
+-- ============================================================================
 -- Continuous aggregate for HTTP metrics
+-- ============================================================================
 CREATE MATERIALIZED VIEW IF NOT EXISTS http_metrics_agg
 WITH (timescaledb.continuous) AS
 SELECT
@@ -62,24 +103,27 @@ WITH NO DATA;
 
 ALTER MATERIALIZED VIEW http_metrics_agg SET (timescaledb.materialized_only = false);
 
--- Refresh policy: every 10 seconds
 SELECT add_continuous_aggregate_policy('http_metrics_agg',
     start_offset => INTERVAL '3 hours',
     end_offset => INTERVAL '10 seconds',
     schedule_interval => INTERVAL '10 seconds',
     if_not_exists => TRUE);
 
+-- ============================================================================
 -- Retention policies (30 days raw, 90 days aggregated)
+-- ============================================================================
 SELECT add_retention_policy('http_metrics', INTERVAL '30 days', if_not_exists => TRUE);
 SELECT add_retention_policy('business_metrics', INTERVAL '30 days', if_not_exists => TRUE);
 SELECT add_retention_policy('infra_metrics', INTERVAL '30 days', if_not_exists => TRUE);
 SELECT add_retention_policy('http_metrics_agg', INTERVAL '90 days', if_not_exists => TRUE);
 
+-- ============================================================================
 -- Indexes for common queries
+-- ============================================================================
 CREATE INDEX IF NOT EXISTS idx_http_metrics_path_time ON http_metrics (path, time DESC);
 CREATE INDEX IF NOT EXISTS idx_business_metrics_name_time ON business_metrics (metric_name, time DESC);
 
--- Partial indexes for high-volume business metrics (faster than composite index)
+-- Partial indexes for high-volume business metrics
 CREATE INDEX IF NOT EXISTS idx_business_metrics_redirects_time
 ON business_metrics (time DESC)
 WHERE metric_name = 'redirects';
@@ -92,7 +136,9 @@ CREATE INDEX IF NOT EXISTS idx_business_metrics_cache_time
 ON business_metrics (time DESC)
 WHERE metric_name IN ('cache_hit', 'cache_miss');
 
+-- ============================================================================
 -- Continuous aggregate for redirects (pre-aggregates per short_code)
+-- ============================================================================
 CREATE MATERIALIZED VIEW IF NOT EXISTS business_metrics_redirects_agg
 WITH (timescaledb.continuous) AS
 SELECT
@@ -114,7 +160,9 @@ SELECT add_continuous_aggregate_policy('business_metrics_redirects_agg',
     schedule_interval => INTERVAL '10 seconds',
     if_not_exists => TRUE);
 
--- Continuous aggregate for unique visitors (pre-aggregates per minute)
+-- ============================================================================
+-- Continuous aggregate for unique visitors
+-- ============================================================================
 CREATE MATERIALIZED VIEW IF NOT EXISTS business_metrics_visitors_agg
 WITH (timescaledb.continuous) AS
 SELECT
@@ -133,7 +181,9 @@ SELECT add_continuous_aggregate_policy('business_metrics_visitors_agg',
     schedule_interval => INTERVAL '10 seconds',
     if_not_exists => TRUE);
 
+-- ============================================================================
 -- Continuous aggregate for cache metrics
+-- ============================================================================
 CREATE MATERIALIZED VIEW IF NOT EXISTS business_metrics_cache_agg
 WITH (timescaledb.continuous) AS
 SELECT
@@ -153,7 +203,9 @@ SELECT add_continuous_aggregate_policy('business_metrics_cache_agg',
     schedule_interval => INTERVAL '10 seconds',
     if_not_exists => TRUE);
 
+-- ============================================================================
 -- Continuous aggregate for URLs created
+-- ============================================================================
 CREATE MATERIALIZED VIEW IF NOT EXISTS business_metrics_urls_agg
 WITH (timescaledb.continuous) AS
 SELECT
@@ -174,7 +226,9 @@ SELECT add_continuous_aggregate_policy('business_metrics_urls_agg',
     schedule_interval => INTERVAL '10 seconds',
     if_not_exists => TRUE);
 
--- Retention policy for new aggregates (90 days)
+-- ============================================================================
+-- Retention policy for aggregates (90 days)
+-- ============================================================================
 SELECT add_retention_policy('business_metrics_redirects_agg', INTERVAL '90 days', if_not_exists => TRUE);
 SELECT add_retention_policy('business_metrics_visitors_agg', INTERVAL '90 days', if_not_exists => TRUE);
 SELECT add_retention_policy('business_metrics_cache_agg', INTERVAL '90 days', if_not_exists => TRUE);

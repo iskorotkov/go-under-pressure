@@ -9,7 +9,7 @@ import (
 
 type Repository interface {
 	NextID(ctx context.Context) (uint, error)
-	Create(ctx context.Context, id uint, shortCode, originalURL string) error
+	Create(ctx context.Context, shortCode, originalURL string) error
 	FindByShortCode(ctx context.Context, shortCode string) (string, error)
 	NextIDs(ctx context.Context, count int) ([]uint, error)
 	CreateBatch(ctx context.Context, urls []repository.URLRow) error

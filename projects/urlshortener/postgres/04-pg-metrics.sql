@@ -1,17 +1,19 @@
+-- ============================================================================
 -- PostgreSQL/TimescaleDB internal metrics (hypertable)
+-- ============================================================================
 CREATE TABLE IF NOT EXISTS pg_metrics (
     time                    TIMESTAMPTZ NOT NULL,
     -- Connection stats
-    active_connections      INT,
-    idle_connections        INT,
-    max_connections         INT,
+    active_connections      SMALLINT,
+    idle_connections        SMALLINT,
+    max_connections         SMALLINT,
     -- Transaction stats (cumulative)
     xact_commit             BIGINT,
     xact_rollback           BIGINT,
     -- Buffer stats
     blks_read               BIGINT,
     blks_hit                BIGINT,
-    buffer_hit_ratio        DOUBLE PRECISION,
+    buffer_hit_ratio        REAL,
     -- Tuple operations (cumulative)
     tup_inserted            BIGINT,
     tup_updated             BIGINT,
@@ -23,10 +25,10 @@ CREATE TABLE IF NOT EXISTS pg_metrics (
     -- Dead tuples
     dead_tuples             BIGINT,
     -- Lock counts
-    locks_total             INT,
+    locks_total             SMALLINT,
     -- TimescaleDB
-    hypertable_count        INT,
-    chunk_count             INT,
+    hypertable_count        SMALLINT,
+    chunk_count             SMALLINT,
     total_hypertable_bytes  BIGINT,
     -- Table/Index sizes
     total_table_bytes       BIGINT,
@@ -35,11 +37,22 @@ CREATE TABLE IF NOT EXISTS pg_metrics (
     total_rows              BIGINT
 );
 
-SELECT create_hypertable('pg_metrics', by_range('time', INTERVAL '1 day'), if_not_exists => TRUE);
+-- Create hypertable with 1-hour chunks for faster compression
+SELECT create_hypertable('pg_metrics', by_range('time', INTERVAL '1 hour'), if_not_exists => TRUE);
 SELECT add_retention_policy('pg_metrics', INTERVAL '30 days', if_not_exists => TRUE);
 CREATE INDEX IF NOT EXISTS idx_pg_metrics_time ON pg_metrics (time DESC);
 
+-- Enable compression with automatic inline compression
+ALTER TABLE pg_metrics SET (
+    timescaledb.compress,
+    timescaledb.compress_orderby = 'time DESC',
+    timescaledb.compress_chunk_time_interval = '1 hour'
+);
+SELECT add_compression_policy('pg_metrics', INTERVAL '2 hours', if_not_exists => TRUE);
+
+-- ============================================================================
 -- Per-table metrics hypertable
+-- ============================================================================
 CREATE TABLE IF NOT EXISTS pg_metrics_per_table (
     time              TIMESTAMPTZ NOT NULL,
     schema_name       TEXT NOT NULL,
@@ -52,23 +65,35 @@ CREATE TABLE IF NOT EXISTS pg_metrics_per_table (
     index_size_bytes  BIGINT
 );
 
-SELECT create_hypertable('pg_metrics_per_table', by_range('time', INTERVAL '1 day'), if_not_exists => TRUE);
+-- Create hypertable with 1-hour chunks
+SELECT create_hypertable('pg_metrics_per_table', by_range('time', INTERVAL '1 hour'), if_not_exists => TRUE);
 SELECT add_retention_policy('pg_metrics_per_table', INTERVAL '30 days', if_not_exists => TRUE);
 CREATE INDEX IF NOT EXISTS idx_pg_metrics_per_table_time ON pg_metrics_per_table (time DESC);
 CREATE INDEX IF NOT EXISTS idx_pg_metrics_per_table_name ON pg_metrics_per_table (table_name, time DESC);
 
+-- Enable compression with automatic inline compression
+ALTER TABLE pg_metrics_per_table SET (
+    timescaledb.compress,
+    timescaledb.compress_segmentby = 'table_name',
+    timescaledb.compress_orderby = 'time DESC',
+    timescaledb.compress_chunk_time_interval = '1 hour'
+);
+SELECT add_compression_policy('pg_metrics_per_table', INTERVAL '2 hours', if_not_exists => TRUE);
+
+-- ============================================================================
 -- Collector function for TimescaleDB job scheduler
+-- ============================================================================
 CREATE OR REPLACE FUNCTION collect_pg_metrics(job_id INT, config JSONB)
 RETURNS VOID AS $$
 DECLARE
-    v_active INT;
-    v_idle INT;
-    v_max INT;
+    v_active SMALLINT;
+    v_idle SMALLINT;
+    v_max SMALLINT;
     v_xact_commit BIGINT;
     v_xact_rollback BIGINT;
     v_blks_read BIGINT;
     v_blks_hit BIGINT;
-    v_buffer_hit_ratio DOUBLE PRECISION;
+    v_buffer_hit_ratio REAL;
     v_tup_inserted BIGINT;
     v_tup_updated BIGINT;
     v_tup_deleted BIGINT;
@@ -76,9 +101,9 @@ DECLARE
     v_seq_scan BIGINT;
     v_idx_scan BIGINT;
     v_dead_tuples BIGINT;
-    v_locks_total INT;
-    v_hypertable_count INT;
-    v_chunk_count INT;
+    v_locks_total SMALLINT;
+    v_hypertable_count SMALLINT;
+    v_chunk_count SMALLINT;
     v_total_bytes BIGINT;
     v_table_bytes BIGINT;
     v_index_bytes BIGINT;
@@ -233,7 +258,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Schedule the collector to run every 10 seconds
--- Note: add_job doesn't have if_not_exists, so we check manually
 DO $$
 BEGIN
     IF NOT EXISTS (

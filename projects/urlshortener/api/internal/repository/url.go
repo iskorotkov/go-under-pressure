@@ -57,10 +57,10 @@ func (r *URLRepository) NextID(ctx context.Context) (uint, error) {
 	return id, nil
 }
 
-func (r *URLRepository) Create(ctx context.Context, id uint, shortCode, originalURL string) error {
+func (r *URLRepository) Create(ctx context.Context, shortCode, originalURL string) error {
 	_, err := r.pool.Exec(ctx,
-		"INSERT INTO urls (id, short_code, original_url, created_at) VALUES ($1, $2, $3, NOW())",
-		id, shortCode, originalURL,
+		"INSERT INTO urls (short_code, original_url, created_at) VALUES ($1, $2, NOW())",
+		shortCode, originalURL,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create url: %w", err)
@@ -102,7 +102,6 @@ func (r *URLRepository) NextIDs(ctx context.Context, count int) ([]uint, error) 
 }
 
 type URLRow struct {
-	ID          uint
 	ShortCode   string
 	OriginalURL string
 }
@@ -111,13 +110,13 @@ func (r *URLRepository) CreateBatch(ctx context.Context, urls []URLRow) error {
 	now := time.Now()
 	rows := make([][]any, len(urls))
 	for i, u := range urls {
-		rows[i] = []any{u.ID, u.ShortCode, u.OriginalURL, now}
+		rows[i] = []any{u.ShortCode, u.OriginalURL, now}
 	}
 
 	_, err := r.pool.CopyFrom(
 		ctx,
 		pgx.Identifier{"urls"},
-		[]string{"id", "short_code", "original_url", "created_at"},
+		[]string{"short_code", "original_url", "created_at"},
 		pgx.CopyFromRows(rows),
 	)
 	if err != nil {

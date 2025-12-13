@@ -21,7 +21,7 @@ import (
 func TestCreateShortURL_Success(t *testing.T) {
 	repo := mocks.NewMockRepository(t)
 	repo.EXPECT().NextID(mock.Anything).Return(uint(42), nil)
-	repo.EXPECT().Create(mock.Anything, uint(42), "xyz789", "https://example.com").Return(nil)
+	repo.EXPECT().Create(mock.Anything, "xyz789", "https://example.com").Return(nil)
 
 	cache := mocks.NewMockCache(t)
 	cache.EXPECT().Get("xyz789").Return("", false).Maybe()
@@ -84,7 +84,7 @@ func TestCreateShortURL_CreateError(t *testing.T) {
 
 	repo := mocks.NewMockRepository(t)
 	repo.EXPECT().NextID(mock.Anything).Return(uint(1), nil)
-	repo.EXPECT().Create(mock.Anything, uint(1), "abc123", "https://example.com").Return(expectedErr)
+	repo.EXPECT().Create(mock.Anything, "abc123", "https://example.com").Return(expectedErr)
 
 	cache := mocks.NewMockCache(t)
 	shortener := mocks.NewMockCodeGenerator(t)
