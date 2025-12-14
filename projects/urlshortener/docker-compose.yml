@@ -21,7 +21,6 @@ services:
     postgres:
         image: timescale/timescaledb:latest-pg18
         container_name: urlshortener-postgres
-        cpuset: "0"
         ulimits:
             nofile:
                 soft: 65535
@@ -66,7 +65,6 @@ services:
     api:
         build: ./api
         container_name: urlshortener-api
-        cpuset: "1"
         ulimits:
             nofile:
                 soft: 65535
