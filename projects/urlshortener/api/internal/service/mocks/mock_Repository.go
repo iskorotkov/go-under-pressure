@@ -174,6 +174,65 @@ func (_c *MockRepository_FindByShortCode_Call) RunAndReturn(run func(context.Con
 	return _c
 }
 
+// FindByShortCodes provides a mock function with given fields: ctx, shortCodes
+func (_m *MockRepository) FindByShortCodes(ctx context.Context, shortCodes []string) (map[string]string, error) {
+	ret := _m.Called(ctx, shortCodes)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindByShortCodes")
+	}
+
+	var r0 map[string]string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string) (map[string]string, error)); ok {
+		return rf(ctx, shortCodes)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string) map[string]string); ok {
+		r0 = rf(ctx, shortCodes)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]string)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = rf(ctx, shortCodes)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockRepository_FindByShortCodes_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindByShortCodes'
+type MockRepository_FindByShortCodes_Call struct {
+	*mock.Call
+}
+
+// FindByShortCodes is a helper method to define mock.On call
+//   - ctx context.Context
+//   - shortCodes []string
+func (_e *MockRepository_Expecter) FindByShortCodes(ctx interface{}, shortCodes interface{}) *MockRepository_FindByShortCodes_Call {
+	return &MockRepository_FindByShortCodes_Call{Call: _e.mock.On("FindByShortCodes", ctx, shortCodes)}
+}
+
+func (_c *MockRepository_FindByShortCodes_Call) Run(run func(ctx context.Context, shortCodes []string)) *MockRepository_FindByShortCodes_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]string))
+	})
+	return _c
+}
+
+func (_c *MockRepository_FindByShortCodes_Call) Return(_a0 map[string]string, _a1 error) *MockRepository_FindByShortCodes_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockRepository_FindByShortCodes_Call) RunAndReturn(run func(context.Context, []string) (map[string]string, error)) *MockRepository_FindByShortCodes_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NextID provides a mock function with given fields: ctx
 func (_m *MockRepository) NextID(ctx context.Context) (uint, error) {
 	ret := _m.Called(ctx)

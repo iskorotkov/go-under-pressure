@@ -80,6 +80,31 @@ func (r *URLRepository) FindByShortCode(ctx context.Context, shortCode string) (
 	return originalURL, nil
 }
 
+func (r *URLRepository) FindByShortCodes(ctx context.Context, shortCodes []string) (map[string]string, error) {
+	if len(shortCodes) == 0 {
+		return make(map[string]string), nil
+	}
+
+	rows, err := r.pool.Query(ctx,
+		"SELECT short_code, original_url FROM urls WHERE short_code = ANY($1)",
+		shortCodes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find urls: %w", err)
+	}
+	defer rows.Close()
+
+	results := make(map[string]string, len(shortCodes))
+	for rows.Next() {
+		var shortCode, originalURL string
+		if err := rows.Scan(&shortCode, &originalURL); err != nil {
+			return nil, fmt.Errorf("failed to scan url: %w", err)
+		}
+		results[shortCode] = originalURL
+	}
+	return results, rows.Err()
+}
+
 func (r *URLRepository) NextIDs(ctx context.Context, count int) ([]uint, error) {
 	rows, err := r.pool.Query(ctx,
 		"SELECT nextval('urls_id_seq') FROM generate_series(1, $1)",

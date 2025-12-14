@@ -12,6 +12,7 @@ type Config struct {
 	Metrics    MetricsConfig
 	Validation ValidationConfig
 	Pprof      PprofConfig
+	Batcher    BatcherConfig
 }
 
 type ServerConfig struct {
@@ -72,6 +73,16 @@ type ValidationConfig struct {
 type PprofConfig struct {
 	Enabled bool   `env:"PPROF_ENABLED" envDefault:"false"`
 	Secret  string `env:"PPROF_SECRET"`
+}
+
+type BatcherConfig struct {
+	Enabled         bool `env:"BATCHER_ENABLED" envDefault:"true"`
+	WriteBatchSize  int  `env:"BATCHER_WRITE_BATCH_SIZE" envDefault:"1000"`
+	WriteFlushMs    int  `env:"BATCHER_WRITE_FLUSH_MS" envDefault:"10"`
+	WriteMaxWorkers int  `env:"BATCHER_WRITE_MAX_WORKERS" envDefault:"4"`
+	ReadBatchSize   int  `env:"BATCHER_READ_BATCH_SIZE" envDefault:"1000"`
+	ReadFlushMs     int  `env:"BATCHER_READ_FLUSH_MS" envDefault:"10"`
+	ReadMaxWorkers  int  `env:"BATCHER_READ_MAX_WORKERS" envDefault:"4"`
 }
 
 func Load() (*Config, error) {

@@ -17,8 +17,10 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"golang.org/x/net/netutil"
 
+	"urlshortener/internal/batcher"
 	"urlshortener/internal/cache"
 	"urlshortener/internal/config"
+	"urlshortener/internal/domain"
 	"urlshortener/internal/handler"
 	"urlshortener/internal/metrics"
 	custommiddleware "urlshortener/internal/middleware"
@@ -75,7 +77,39 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		cfg.Validation.AllowPrivateIPs,
 	)
 
-	urlService := service.NewURLService(repo, short, urlCache, cfg.App.BaseURL, recorder)
+	var writeBatcher *batcher.Batcher[service.CreateRequest, *domain.CreateURLResponse]
+	var readBatcher *batcher.Batcher[service.LookupRequest, string]
+
+	urlService := service.NewURLService(repo, short, urlCache, cfg.App.BaseURL, recorder, nil, nil)
+
+	if cfg.Batcher.Enabled {
+		writeBatcher = batcher.New(batcher.Config{
+			BatchSize:  cfg.Batcher.WriteBatchSize,
+			FlushMs:    cfg.Batcher.WriteFlushMs,
+			MaxWorkers: cfg.Batcher.WriteMaxWorkers,
+		}, urlService.CreateFlushFunc)
+		writeBatcher.Start(ctx)
+		defer writeBatcher.Close()
+
+		readBatcher = batcher.New(batcher.Config{
+			BatchSize:  cfg.Batcher.ReadBatchSize,
+			FlushMs:    cfg.Batcher.ReadFlushMs,
+			MaxWorkers: cfg.Batcher.ReadMaxWorkers,
+		}, urlService.LookupFlushFunc)
+		readBatcher.Start(ctx)
+		defer readBatcher.Close()
+
+		urlService.SetBatchers(writeBatcher, readBatcher)
+
+		logger.Info("batchers enabled",
+			slog.Int("write_batch_size", cfg.Batcher.WriteBatchSize),
+			slog.Int("write_flush_ms", cfg.Batcher.WriteFlushMs),
+			slog.Int("write_max_workers", cfg.Batcher.WriteMaxWorkers),
+			slog.Int("read_batch_size", cfg.Batcher.ReadBatchSize),
+			slog.Int("read_flush_ms", cfg.Batcher.ReadFlushMs),
+			slog.Int("read_max_workers", cfg.Batcher.ReadMaxWorkers))
+	}
+
 	h := handler.New(urlService, urlValidator, logger, recorder)
 
 	e := echo.New()

@@ -11,6 +11,7 @@ type Repository interface {
 	NextID(ctx context.Context) (uint, error)
 	Create(ctx context.Context, shortCode, originalURL string) error
 	FindByShortCode(ctx context.Context, shortCode string) (string, error)
+	FindByShortCodes(ctx context.Context, shortCodes []string) (map[string]string, error)
 	NextIDs(ctx context.Context, count int) ([]uint, error)
 	CreateBatch(ctx context.Context, urls []repository.URLRow) error
 }

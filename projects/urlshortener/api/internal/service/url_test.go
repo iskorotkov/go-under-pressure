@@ -33,7 +33,7 @@ func TestCreateShortURL_Success(t *testing.T) {
 	recorder := mocks.NewMockBusinessRecorder(t)
 	recorder.EXPECT().RecordBusiness(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
+	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder, nil, nil)
 
 	resp, err := svc.CreateShortURL(context.Background(), "https://example.com")
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestCreateShortURL_NextIDError(t *testing.T) {
 	shortener := mocks.NewMockCodeGenerator(t)
 	recorder := mocks.NewMockBusinessRecorder(t)
 
-	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
+	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder, nil, nil)
 
 	_, err := svc.CreateShortURL(context.Background(), "https://example.com")
 	require.Error(t, err)
@@ -72,7 +72,7 @@ func TestCreateShortURL_GenerateError(t *testing.T) {
 
 	recorder := mocks.NewMockBusinessRecorder(t)
 
-	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
+	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder, nil, nil)
 
 	_, err := svc.CreateShortURL(context.Background(), "https://example.com")
 	require.Error(t, err)
@@ -92,7 +92,7 @@ func TestCreateShortURL_CreateError(t *testing.T) {
 
 	recorder := mocks.NewMockBusinessRecorder(t)
 
-	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
+	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder, nil, nil)
 
 	_, err := svc.CreateShortURL(context.Background(), "https://example.com")
 	require.Error(t, err)
@@ -116,7 +116,7 @@ func TestGetOriginalURL_CacheHit(t *testing.T) {
 			recordedMetrics = append(recordedMetrics, name)
 		}).Return().Times(2)
 
-	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
+	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder, nil, nil)
 
 	url, err := svc.GetOriginalURL(context.Background(), "abc123")
 	require.NoError(t, err)
@@ -144,7 +144,7 @@ func TestGetOriginalURL_CacheMiss_DBFound(t *testing.T) {
 			recordedMetrics = append(recordedMetrics, name)
 		}).Return().Times(2)
 
-	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
+	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder, nil, nil)
 
 	url, err := svc.GetOriginalURL(context.Background(), "abc123")
 	require.NoError(t, err)
@@ -166,7 +166,7 @@ func TestGetOriginalURL_NotFound(t *testing.T) {
 	recorder := mocks.NewMockBusinessRecorder(t)
 	recorder.EXPECT().RecordBusiness(mock.Anything, "cache_miss", float64(1), mock.Anything).Return()
 
-	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
+	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder, nil, nil)
 
 	_, err := svc.GetOriginalURL(context.Background(), "notfound")
 	assert.ErrorIs(t, err, service.ErrURLNotFound)
@@ -186,7 +186,7 @@ func TestGetOriginalURL_DBError(t *testing.T) {
 	recorder := mocks.NewMockBusinessRecorder(t)
 	recorder.EXPECT().RecordBusiness(mock.Anything, "cache_miss", float64(1), mock.Anything).Return()
 
-	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
+	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder, nil, nil)
 
 	_, err := svc.GetOriginalURL(context.Background(), "abc123")
 	require.Error(t, err)
@@ -201,7 +201,7 @@ func TestCreateShortURLBatch_EmptyURLs(t *testing.T) {
 	shortener := mocks.NewMockCodeGenerator(t)
 	recorder := mocks.NewMockBusinessRecorder(t)
 
-	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
+	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder, nil, nil)
 
 	resp, err := svc.CreateShortURLBatch(context.Background(), []string{})
 	require.NoError(t, err)
@@ -223,7 +223,7 @@ func TestCreateShortURLBatch_Success(t *testing.T) {
 	recorder := mocks.NewMockBusinessRecorder(t)
 	recorder.EXPECT().RecordBusiness(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return().Times(2)
 
-	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
+	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder, nil, nil)
 
 	urls := []string{"https://example.com/1", "https://example.com/2"}
 	resp, err := svc.CreateShortURLBatch(context.Background(), urls)
@@ -241,7 +241,7 @@ func TestCreateShortURLBatch_NextIDsError(t *testing.T) {
 	shortener := mocks.NewMockCodeGenerator(t)
 	recorder := mocks.NewMockBusinessRecorder(t)
 
-	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
+	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder, nil, nil)
 
 	_, err := svc.CreateShortURLBatch(context.Background(), []string{"https://example.com"})
 	require.Error(t, err)
@@ -263,7 +263,7 @@ func TestCreateShortURLBatch_GenerateError(t *testing.T) {
 
 	recorder := mocks.NewMockBusinessRecorder(t)
 
-	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
+	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder, nil, nil)
 
 	_, err := svc.CreateShortURLBatch(context.Background(), []string{"url1", "url2"})
 	require.Error(t, err)
@@ -287,7 +287,7 @@ func TestCreateShortURLBatch_CreateBatchError(t *testing.T) {
 
 	recorder := mocks.NewMockBusinessRecorder(t)
 
-	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder)
+	svc := service.NewURLService(repo, shortener, cache, "http://short.url", recorder, nil, nil)
 
 	_, err := svc.CreateShortURLBatch(context.Background(), []string{"https://example.com"})
 	require.Error(t, err)

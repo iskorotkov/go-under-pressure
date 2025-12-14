@@ -3,80 +3,70 @@ package metrics
 import (
 	"context"
 	"log/slog"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"urlshortener/internal/batcher"
 	"urlshortener/internal/config"
 )
 
 type Recorder struct {
-	pool            *pgxpool.Pool
-	logger          *slog.Logger
-	cfg             *config.MetricsConfig
-	httpCh          chan HTTPMetric
-	businessCh      chan BusinessMetric
-	infraCh         chan InfraMetric
-	wg              sync.WaitGroup
-	shutdownOnce    sync.Once
-	shutdownCh      chan struct{}
-	droppedHTTP     atomic.Uint64
-	droppedBusiness atomic.Uint64
-	droppedInfra    atomic.Uint64
+	pool         *pgxpool.Pool
+	logger       *slog.Logger
+	cfg          *config.MetricsConfig
+	httpBatcher  *batcher.Batcher[HTTPMetric, struct{}]
+	busiBatcher  *batcher.Batcher[BusinessMetric, struct{}]
+	infraBatcher *batcher.Batcher[InfraMetric, struct{}]
 }
 
 func NewRecorder(pool *pgxpool.Pool, cfg *config.MetricsConfig, logger *slog.Logger) *Recorder {
-	return &Recorder{
-		pool:       pool,
-		logger:     logger,
-		cfg:        cfg,
-		httpCh:     make(chan HTTPMetric, cfg.BufferSize),
-		businessCh: make(chan BusinessMetric, cfg.BufferSize),
-		infraCh:    make(chan InfraMetric, cfg.BufferSize),
-		shutdownCh: make(chan struct{}),
+	r := &Recorder{
+		pool:   pool,
+		logger: logger,
+		cfg:    cfg,
 	}
+
+	batcherCfg := batcher.Config{
+		BatchSize:    cfg.FlushThreshold,
+		FlushMs:      cfg.FlushInterval,
+		MaxWorkers:   1,
+		DropOnFull:   true,
+		DrainTimeout: 5 * time.Second,
+	}
+
+	r.httpBatcher = batcher.New(batcherCfg, r.flushHTTP)
+	r.busiBatcher = batcher.New(batcherCfg, r.flushBusiness)
+	r.infraBatcher = batcher.New(batcherCfg, r.flushInfra)
+
+	return r
 }
 
 func (r *Recorder) RecordHTTP(m HTTPMetric) {
 	if !r.cfg.Enabled {
 		return
 	}
-	select {
-	case r.httpCh <- m:
-	default:
-		r.droppedHTTP.Add(1)
-	}
+	r.httpBatcher.SubmitAsync(m)
 }
 
 func (r *Recorder) RecordBusiness(t time.Time, name string, value float64, labelsJSON []byte) {
 	if !r.cfg.Enabled {
 		return
 	}
-	m := BusinessMetric{
+	r.busiBatcher.SubmitAsync(BusinessMetric{
 		Time:       t,
 		MetricName: name,
 		Value:      value,
 		LabelsJSON: labelsJSON,
-	}
-	select {
-	case r.businessCh <- m:
-	default:
-		r.droppedBusiness.Add(1)
-	}
+	})
 }
 
 func (r *Recorder) RecordInfra(m InfraMetric) {
 	if !r.cfg.Enabled {
 		return
 	}
-	select {
-	case r.infraCh <- m:
-	default:
-		r.droppedInfra.Add(1)
-	}
+	r.infraBatcher.SubmitAsync(m)
 }
 
 func (r *Recorder) Start(ctx context.Context) {
@@ -85,78 +75,35 @@ func (r *Recorder) Start(ctx context.Context) {
 		return
 	}
 
-	flushInterval := time.Duration(r.cfg.FlushInterval) * time.Millisecond
-
-	r.wg.Add(3)
-	go r.flushHTTPMetrics(ctx, flushInterval)
-	go r.flushBusinessMetrics(ctx, flushInterval)
-	go r.flushInfraMetrics(ctx, flushInterval)
+	r.httpBatcher.Start(ctx)
+	r.busiBatcher.Start(ctx)
+	r.infraBatcher.Start(ctx)
 
 	r.logger.Info("metrics recorder started",
-		slog.Int("buffer_size", r.cfg.BufferSize),
+		slog.Int("flush_threshold", r.cfg.FlushThreshold),
 		slog.Int("flush_interval_ms", r.cfg.FlushInterval))
 }
 
 func (r *Recorder) Close() {
-	r.shutdownOnce.Do(func() {
-		close(r.shutdownCh)
-		r.wg.Wait()
-	})
+	r.httpBatcher.Close()
+	r.busiBatcher.Close()
+	r.infraBatcher.Close()
+
+	r.logDropped("http", r.httpBatcher.DroppedCount())
+	r.logDropped("business", r.busiBatcher.DroppedCount())
+	r.logDropped("infra", r.infraBatcher.DroppedCount())
 }
 
-func (r *Recorder) flushHTTPMetrics(ctx context.Context, interval time.Duration) {
-	defer r.wg.Done()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	batch := make([]HTTPMetric, 0, r.cfg.BufferSize)
-
-	for {
-		select {
-		case <-ctx.Done():
-			r.drainAndFlushHTTP(batch)
-			return
-		case <-r.shutdownCh:
-			r.drainAndFlushHTTP(batch)
-			return
-		case m := <-r.httpCh:
-			batch = append(batch, m)
-			if len(batch) >= r.cfg.FlushThreshold {
-				r.writeHTTPBatch(ctx, batch)
-				batch = batch[:0]
-			}
-		case <-ticker.C:
-			if len(batch) > 0 {
-				r.writeHTTPBatch(ctx, batch)
-				batch = batch[:0]
-			}
-		}
+func (r *Recorder) logDropped(name string, count uint64) {
+	if count > 0 {
+		r.logger.Warn("dropped metrics on shutdown", slog.String("type", name), slog.Uint64("count", count))
 	}
 }
 
-func (r *Recorder) drainAndFlushHTTP(batch []HTTPMetric) {
-	for {
-		select {
-		case m := <-r.httpCh:
-			batch = append(batch, m)
-		default:
-			if len(batch) > 0 {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				r.writeHTTPBatch(ctx, batch)
-				cancel()
-			}
-			return
-		}
-	}
-}
-
-func (r *Recorder) writeHTTPBatch(ctx context.Context, batch []HTTPMetric) {
-	if len(batch) == 0 {
-		return
-	}
-
+func (r *Recorder) flushHTTP(ctx context.Context, batch []batcher.Request[HTTPMetric, struct{}]) {
 	rows := make([][]any, len(batch))
-	for i, m := range batch {
+	for i, req := range batch {
+		m := req.Input
 		rows[i] = []any{m.Time, m.Method, m.Path, m.StatusCode, m.DurationMs, m.ClientIP, m.Error}
 	}
 
@@ -169,64 +116,15 @@ func (r *Recorder) writeHTTPBatch(ctx context.Context, batch []HTTPMetric) {
 		r.logger.Error("failed to write http metrics batch", slog.String("error", err.Error()))
 	}
 
-	if dropped := r.droppedHTTP.Swap(0); dropped > 0 {
+	if dropped := r.httpBatcher.SwapDroppedCount(); dropped > 0 {
 		r.logger.Warn("dropped http metrics", slog.Uint64("count", dropped))
 	}
 }
 
-func (r *Recorder) flushBusinessMetrics(ctx context.Context, interval time.Duration) {
-	defer r.wg.Done()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	batch := make([]BusinessMetric, 0, r.cfg.BufferSize)
-
-	for {
-		select {
-		case <-ctx.Done():
-			r.drainAndFlushBusiness(batch)
-			return
-		case <-r.shutdownCh:
-			r.drainAndFlushBusiness(batch)
-			return
-		case m := <-r.businessCh:
-			batch = append(batch, m)
-			if len(batch) >= r.cfg.FlushThreshold {
-				r.writeBusinessBatch(ctx, batch)
-				batch = batch[:0]
-			}
-		case <-ticker.C:
-			if len(batch) > 0 {
-				r.writeBusinessBatch(ctx, batch)
-				batch = batch[:0]
-			}
-		}
-	}
-}
-
-func (r *Recorder) drainAndFlushBusiness(batch []BusinessMetric) {
-	for {
-		select {
-		case m := <-r.businessCh:
-			batch = append(batch, m)
-		default:
-			if len(batch) > 0 {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				r.writeBusinessBatch(ctx, batch)
-				cancel()
-			}
-			return
-		}
-	}
-}
-
-func (r *Recorder) writeBusinessBatch(ctx context.Context, batch []BusinessMetric) {
-	if len(batch) == 0 {
-		return
-	}
-
+func (r *Recorder) flushBusiness(ctx context.Context, batch []batcher.Request[BusinessMetric, struct{}]) {
 	rows := make([][]any, len(batch))
-	for i, m := range batch {
+	for i, req := range batch {
+		m := req.Input
 		rows[i] = []any{m.Time, m.MetricName, m.Value, m.LabelsJSON}
 	}
 
@@ -239,64 +137,15 @@ func (r *Recorder) writeBusinessBatch(ctx context.Context, batch []BusinessMetri
 		r.logger.Error("failed to write business metrics batch", slog.String("error", err.Error()))
 	}
 
-	if dropped := r.droppedBusiness.Swap(0); dropped > 0 {
+	if dropped := r.busiBatcher.SwapDroppedCount(); dropped > 0 {
 		r.logger.Warn("dropped business metrics", slog.Uint64("count", dropped))
 	}
 }
 
-func (r *Recorder) flushInfraMetrics(ctx context.Context, interval time.Duration) {
-	defer r.wg.Done()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	batch := make([]InfraMetric, 0, r.cfg.BufferSize)
-
-	for {
-		select {
-		case <-ctx.Done():
-			r.drainAndFlushInfra(batch)
-			return
-		case <-r.shutdownCh:
-			r.drainAndFlushInfra(batch)
-			return
-		case m := <-r.infraCh:
-			batch = append(batch, m)
-			if len(batch) >= r.cfg.FlushThreshold {
-				r.writeInfraBatch(ctx, batch)
-				batch = batch[:0]
-			}
-		case <-ticker.C:
-			if len(batch) > 0 {
-				r.writeInfraBatch(ctx, batch)
-				batch = batch[:0]
-			}
-		}
-	}
-}
-
-func (r *Recorder) drainAndFlushInfra(batch []InfraMetric) {
-	for {
-		select {
-		case m := <-r.infraCh:
-			batch = append(batch, m)
-		default:
-			if len(batch) > 0 {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				r.writeInfraBatch(ctx, batch)
-				cancel()
-			}
-			return
-		}
-	}
-}
-
-func (r *Recorder) writeInfraBatch(ctx context.Context, batch []InfraMetric) {
-	if len(batch) == 0 {
-		return
-	}
-
+func (r *Recorder) flushInfra(ctx context.Context, batch []batcher.Request[InfraMetric, struct{}]) {
 	rows := make([][]any, len(batch))
-	for i, m := range batch {
+	for i, req := range batch {
+		m := req.Input
 		rows[i] = []any{
 			m.Time, m.PoolAcquired, m.PoolIdle, m.PoolTotal, m.PoolMax,
 			m.CacheHits, m.CacheMisses, m.CacheHitRatio, m.Goroutines, m.HeapAllocMB,
@@ -315,7 +164,7 @@ func (r *Recorder) writeInfraBatch(ctx context.Context, batch []InfraMetric) {
 		r.logger.Error("failed to write infra metrics batch", slog.String("error", err.Error()))
 	}
 
-	if dropped := r.droppedInfra.Swap(0); dropped > 0 {
+	if dropped := r.infraBatcher.SwapDroppedCount(); dropped > 0 {
 		r.logger.Warn("dropped infra metrics", slog.Uint64("count", dropped))
 	}
 }

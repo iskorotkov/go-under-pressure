@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"urlshortener/internal/batcher"
 	"urlshortener/internal/domain"
 	"urlshortener/internal/repository"
 )
@@ -20,11 +21,13 @@ var (
 var ErrURLNotFound = errors.New("url not found")
 
 type URLService struct {
-	repo      Repository
-	shortener CodeGenerator
-	cache     Cache
-	baseURL   string
-	recorder  BusinessRecorder
+	repo         Repository
+	shortener    CodeGenerator
+	cache        Cache
+	baseURL      string
+	recorder     BusinessRecorder
+	writeBatcher *batcher.Batcher[CreateRequest, *domain.CreateURLResponse]
+	readBatcher  *batcher.Batcher[LookupRequest, string]
 }
 
 func NewURLService(
@@ -33,17 +36,36 @@ func NewURLService(
 	cache Cache,
 	baseURL string,
 	recorder BusinessRecorder,
+	writeBatcher *batcher.Batcher[CreateRequest, *domain.CreateURLResponse],
+	readBatcher *batcher.Batcher[LookupRequest, string],
 ) *URLService {
 	return &URLService{
-		repo:      repo,
-		shortener: shortener,
-		cache:     cache,
-		baseURL:   baseURL,
-		recorder:  recorder,
+		repo:         repo,
+		shortener:    shortener,
+		cache:        cache,
+		baseURL:      baseURL,
+		recorder:     recorder,
+		writeBatcher: writeBatcher,
+		readBatcher:  readBatcher,
 	}
 }
 
+func (s *URLService) SetBatchers(
+	writeBatcher *batcher.Batcher[CreateRequest, *domain.CreateURLResponse],
+	readBatcher *batcher.Batcher[LookupRequest, string],
+) {
+	s.writeBatcher = writeBatcher
+	s.readBatcher = readBatcher
+}
+
 func (s *URLService) CreateShortURL(ctx context.Context, originalURL string) (*domain.CreateURLResponse, error) {
+	if s.writeBatcher != nil {
+		return s.writeBatcher.Submit(ctx, CreateRequest{OriginalURL: originalURL})
+	}
+	return s.createShortURLSync(ctx, originalURL)
+}
+
+func (s *URLService) createShortURLSync(ctx context.Context, originalURL string) (*domain.CreateURLResponse, error) {
 	id, err := s.repo.NextID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get next id: %w", err)
@@ -81,6 +103,20 @@ func (s *URLService) GetOriginalURL(ctx context.Context, shortCode string) (stri
 
 	s.recorder.RecordBusiness(now, "cache_miss", 1, cacheLabels)
 
+	if s.readBatcher != nil {
+		url, err := s.readBatcher.Submit(ctx, LookupRequest{ShortCode: shortCode})
+		if err != nil {
+			return "", err
+		}
+		redirectLabels := fmt.Appendf(nil, `{"short_code":%q,"original_url":%q}`, shortCode, url)
+		s.recorder.RecordBusiness(now, "redirects", 1, redirectLabels)
+		return url, nil
+	}
+
+	return s.getOriginalURLSync(ctx, shortCode)
+}
+
+func (s *URLService) getOriginalURLSync(ctx context.Context, shortCode string) (string, error) {
 	url, err := s.repo.FindByShortCode(ctx, shortCode)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -91,7 +127,7 @@ func (s *URLService) GetOriginalURL(ctx context.Context, shortCode string) (stri
 
 	s.cache.Set(shortCode, url)
 	redirectLabels := fmt.Appendf(nil, `{"short_code":%q,"original_url":%q}`, shortCode, url)
-	s.recorder.RecordBusiness(now, "redirects", 1, redirectLabels)
+	s.recorder.RecordBusiness(time.Now(), "redirects", 1, redirectLabels)
 
 	return url, nil
 }
